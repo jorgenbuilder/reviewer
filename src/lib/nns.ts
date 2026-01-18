@@ -52,7 +52,7 @@ export const TOPIC_NAMES: Record<number, string> = {
 export const PROTOCOL_CANISTER_MANAGEMENT_TOPIC = PROPOSAL_TOPICS.PROTOCOL_CANISTER_MANAGEMENT;
 
 // Only verify proposals after this ID (first proposal on Jan 12 2026 UTC)
-export const MIN_PROPOSAL_ID = 140000n;
+export const MIN_PROPOSAL_ID = 139995n;
 
 export interface ProposalInfo {
   id: bigint;

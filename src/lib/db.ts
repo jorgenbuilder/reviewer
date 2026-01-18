@@ -122,9 +122,13 @@ export async function markProposalNotified(proposalId: string): Promise<void> {
 }
 
 export async function getRecentProposals(limit: number = 50): Promise<ProposalSeenRecord[]> {
+  // Import MIN_PROPOSAL_ID to filter old proposals
+  const { MIN_PROPOSAL_ID } = await import('./nns')
+
   const { data, error } = await supabase
     .from('proposals_seen')
     .select('*')
+    .gte('proposal_id', Number(MIN_PROPOSAL_ID))
     .order('proposal_id', { ascending: false })
     .limit(limit)
 
