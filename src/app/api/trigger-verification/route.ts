@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Receiver } from "@upstash/qstash";
-import { getRecentProposals } from "@/lib/db";
-import { hasAnyVerificationRun } from "@/lib/github";
+import { getRecentProposals, markVerificationTriggered } from "@/lib/db";
 import { getProposal, MIN_PROPOSAL_ID } from "@/lib/nns";
 
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
@@ -141,11 +140,10 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      // Check if ANY verification run exists - never re-run if a run exists
-      // This prevents endless loops when builds fail
-      const hasExistingRun = await hasAnyVerificationRun(proposal.proposal_id);
-
-      if (hasExistingRun) {
+      // Dedup against our DB record of prior triggers. This replaces a
+      // GitHub-API check that silently missed runs outside the 100-run
+      // window and caused duplicate dispatches.
+      if (proposal.verification_triggered_at) {
         skippedProposals.push(proposal.proposal_id);
         continue;
       }
@@ -155,6 +153,7 @@ export async function POST(request: NextRequest) {
       const success = await triggerVerifyWorkflow(proposal.proposal_id);
 
       if (success) {
+        await markVerificationTriggered(proposal.proposal_id);
         triggeredProposals.push(proposal.proposal_id);
       } else {
         failedWorkflows.push({

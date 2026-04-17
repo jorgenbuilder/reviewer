@@ -60,6 +60,7 @@ export type Database = {
           proposal_timestamp: string | null
           lines_added: number | null
           lines_removed: number | null
+          verification_triggered_at: string | null
         }
         Insert: {
           proposal_id: number
@@ -75,6 +76,7 @@ export type Database = {
           proposal_timestamp?: string | null
           lines_added?: number | null
           lines_removed?: number | null
+          verification_triggered_at?: string | null
         }
         Update: {
           proposal_id?: number
@@ -90,6 +92,7 @@ export type Database = {
           proposal_timestamp?: string | null
           lines_added?: number | null
           lines_removed?: number | null
+          verification_triggered_at?: string | null
         }
         Relationships: []
       }

@@ -121,6 +121,15 @@ export async function markProposalNotified(proposalId: string): Promise<void> {
   if (error) throw error
 }
 
+export async function markVerificationTriggered(proposalId: string): Promise<void> {
+  const { error } = await supabase
+    .from('proposals_seen')
+    .update({ verification_triggered_at: new Date().toISOString() })
+    .eq('proposal_id', parseInt(proposalId, 10))
+
+  if (error) throw error
+}
+
 export async function getRecentProposals(limit: number = 50): Promise<ProposalSeenRecord[]> {
   // Import MIN_PROPOSAL_ID to filter old proposals
   const { MIN_PROPOSAL_ID } = await import('./nns')
