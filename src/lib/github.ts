@@ -1,5 +1,5 @@
 const REPO_OWNER = "jorgenbuilder";
-const REPO_NAME = "icp-build-verifier";
+const REPO_NAME = "gh-verifier";
 
 export interface ActionRun {
   id: number;

@@ -5,7 +5,7 @@ import { getProposal, isVerifiableProposal, MIN_PROPOSAL_ID } from "@/lib/nns";
 
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 const REPO_OWNER = "jorgenbuilder";
-const REPO_NAME = "icp-build-verifier";
+const REPO_NAME = "gh-verifier";
 
 // Verify QStash signature
 async function verifyQStashSignature(

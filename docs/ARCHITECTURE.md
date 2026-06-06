@@ -51,9 +51,9 @@ PWAs alone cannot achieve reliable notifications - a backend is mandatory. Servi
 
 ### Proposal → GitHub Actions Mapping
 
-- Query `github.com/jorgenbuilder/icp-build-verifier` Actions API
+- Query `github.com/jorgenbuilder/gh-verifier` Actions API
 - Parse run names matching pattern: `Verify Proposal #<ID>`
-- Link format: `https://github.com/jorgenbuilder/icp-build-verifier/actions/runs/<RUN_ID>`
+- Link format: `https://github.com/jorgenbuilder/gh-verifier/actions/runs/<RUN_ID>`
 
 ## Tech Stack
 
@@ -205,7 +205,7 @@ QSTASH_NEXT_SIGNING_KEY=
 - **Endpoint**: `list_proposals`
 - **Dashboard**: https://dashboard.internetcomputer.org/canister/rrkah-fqaaa-aaaaa-aaaaq-cai
 
-### Query Pattern (from icp-build-verifier)
+### Query Pattern (from gh-verifier)
 
 ```typescript
 import { HttpAgent, Actor } from "@dfinity/agent";
@@ -265,8 +265,8 @@ interface ProposalInfo {
 
 ### Repository
 
-- **Repo**: `github.com/jorgenbuilder/icp-build-verifier`
-- **Local path**: `../icp-build-verifier` (for reference)
+- **Repo**: `github.com/jorgenbuilder/gh-verifier`
+- **Local path**: `../gh-verifier` (for reference)
 
 ### Discovering Action Runs
 
@@ -275,7 +275,7 @@ Action runs use naming convention: `Verify Proposal #<PROPOSAL_ID>`
 ```typescript
 // Query GitHub Actions API
 const response = await fetch(
-  "https://api.github.com/repos/jorgenbuilder/icp-build-verifier/actions/runs?per_page=100",
+  "https://api.github.com/repos/jorgenbuilder/gh-verifier/actions/runs?per_page=100",
   {
     headers: {
       Accept: "application/vnd.github.v3+json",
@@ -297,7 +297,7 @@ function findRunForProposal(proposalId: string, runs: any[]) {
 ### Link Format
 
 - **IC Dashboard**: `https://dashboard.internetcomputer.org/proposal/{proposalId}`
-- **GitHub Action Run**: `https://github.com/jorgenbuilder/icp-build-verifier/actions/runs/{runId}`
+- **GitHub Action Run**: `https://github.com/jorgenbuilder/gh-verifier/actions/runs/{runId}`
 
 ## Service Worker Implementation
 
@@ -457,6 +457,6 @@ Note: Free tier limited to hourly. Upstash QStash provides more frequent polling
 ## References
 
 - NNS Governance: https://dashboard.internetcomputer.org/canister/rrkah-fqaaa-aaaaa-aaaaq-cai
-- icp-build-verifier: https://github.com/jorgenbuilder/icp-build-verifier
+- gh-verifier: https://github.com/jorgenbuilder/gh-verifier
 - Web Push Protocol: https://web.dev/articles/push-notifications-web-push-protocol
 - VAPID: https://rossta.net/blog/using-the-web-push-api-with-vapid.html
