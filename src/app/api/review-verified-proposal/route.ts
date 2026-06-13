@@ -115,7 +115,7 @@ export async function POST(request: NextRequest) {
     const raw = renderVerificationNote({ proposalId, title: audit.title || "", verificationRunUrl: audit.runUrl || "" });
     const posted = await postReply(topicId, raw);
     await markReviewPosted(proposalId, posted.url);
-    await recordEvent(proposalId, "review_posted", { detail: posted.url, push: { title: "Verification note posted", body: `#${proposalId} posted to the forum` } });
+    await recordEvent(proposalId, "review_posted", { detail: posted.url, push: { title: "Verification note posted", body: `#${proposalId} posted to the forum`, url: posted.url } });
     log("✅ posted verification note:", posted.url);
     return NextResponse.json({ status: "posted", url: posted.url });
   } catch (err) {

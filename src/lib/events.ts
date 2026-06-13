@@ -26,7 +26,8 @@ export async function notifyOperator(payload: PushPayload): Promise<void> {
 export interface RecordEventOpts {
   detail?: string;
   once?: boolean; // skip if an event of this type already exists for the proposal
-  push?: { title: string; body: string }; // if set, also push to the operator
+  // if set, also push to the operator; `url` overrides the click target (default: proposal page)
+  push?: { title: string; body: string; url?: string };
 }
 
 /**
@@ -46,7 +47,7 @@ export async function recordEvent(proposalId: string, eventType: string, opts: R
       title: opts.push.title,
       body: opts.push.body,
       proposalId,
-      url: `${APP_URL}/proposals/${proposalId}`,
+      url: opts.push.url || `${APP_URL}/proposals/${proposalId}`,
     });
   }
   return true;
