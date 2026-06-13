@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import ReactMarkdown from "react-markdown";
 import type { Components } from "react-markdown";
@@ -17,6 +17,7 @@ import {
   Sparkles,
   MessageSquare,
   FileCheck,
+  Clock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ParsedProposal } from "@/lib/design-stub";
@@ -100,6 +101,63 @@ function CopyButton({ text, label }: { text: string; label: string }) {
   );
 }
 
+// Review-hub status shown in the top bar. Terminal states are literal words;
+// a pending review counts down to the on-chain review deadline.
+function HubStatus({ hub }: { hub: NonNullable<ParsedProposal["hub"]> }) {
+  if (hub.state === "done")
+    return (
+      <span className="font-mono text-xs font-bold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">
+        done
+      </span>
+    );
+  if (hub.state === "miss")
+    return (
+      <span className="font-mono text-xs font-bold uppercase tracking-wide text-destructive">
+        miss
+      </span>
+    );
+  return <HubCountdown deadlineMs={hub.deadlineMs} />;
+}
+
+function formatCountdown(ms: number): string {
+  if (ms <= 0) return "due";
+  const s = Math.floor(ms / 1000);
+  const d = Math.floor(s / 86400);
+  const h = Math.floor((s % 86400) / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  if (d > 0) return `${d}d ${h}h`;
+  if (h > 0) return `${h}h ${m}m`;
+  if (m > 0) return `${m}m ${sec}s`;
+  return `${sec}s`;
+}
+
+// Live countdown to the review deadline. `remaining` starts null so server and
+// first client render match (just the clock icon); the interval fills it in on
+// mount and ticks every second.
+function HubCountdown({ deadlineMs }: { deadlineMs: number }) {
+  const [remaining, setRemaining] = useState<number | null>(null);
+  useEffect(() => {
+    const tick = () => setRemaining(deadlineMs - Date.now());
+    tick();
+    const t = setInterval(tick, 1000);
+    return () => clearInterval(t);
+  }, [deadlineMs]);
+  const overdue = remaining !== null && remaining <= 0;
+  return (
+    <span
+      title={remaining === null ? undefined : `Review deadline: ${new Date(deadlineMs).toLocaleString()}`}
+      className={cn(
+        "flex items-center gap-1 font-mono text-xs font-bold tabular-nums",
+        overdue ? "text-destructive" : "text-foreground"
+      )}
+    >
+      <Clock className="h-3.5 w-3.5 shrink-0" aria-hidden />
+      {remaining === null ? "" : formatCountdown(remaining)}
+    </span>
+  );
+}
+
 // Pure presentational redesign of the proposal detail view.
 //
 // Mobile-first, edge-to-edge, no rounded corners, hairline dividers between
@@ -140,7 +198,7 @@ const mdComponents: Components = {
   ),
   pre: ({ node, ...props }) => (
     <pre
-      className="my-2 overflow-x-auto border border-border bg-muted p-2 font-mono text-[0.75rem] leading-snug [&_code]:border-0 [&_code]:bg-transparent [&_code]:p-0"
+      className="my-2 whitespace-pre-wrap break-words border border-border bg-muted p-2 font-mono text-[0.75rem] leading-snug [&_code]:border-0 [&_code]:bg-transparent [&_code]:p-0"
       {...props}
     />
   ),
@@ -153,7 +211,7 @@ const mdComponents: Components = {
 
 function Markdown({ children, className }: { children: string; className?: string }) {
   return (
-    <div className={cn("text-sm text-foreground", className)}>
+    <div className={cn("text-sm text-foreground break-words", className)}>
       <ReactMarkdown components={mdComponents}>{children}</ReactMarkdown>
     </div>
   );
@@ -500,7 +558,7 @@ export function ProposalDetailV2({ proposal: p }: ProposalDetailV2Props) {
     setOpenCommits((m) => ({ ...m, [hash]: !m[hash] }));
 
   return (
-    <article className="mx-auto w-full max-w-2xl bg-background pb-[75vh] text-foreground">
+    <article className="mx-auto w-full max-w-2xl overflow-x-hidden bg-background pb-[75vh] text-foreground">
       {/* 1. Header — fixed to the viewport top; the spacer <header> reserves its
           height in flow. The bar is centred on the same max-w-2xl column as the
           article so it lines up on wide screens and is full-width on mobile. */}
@@ -521,13 +579,12 @@ export function ProposalDetailV2({ proposal: p }: ProposalDetailV2Props) {
             <span className="text-muted-foreground/60" aria-hidden>/</span>
             <CopyPageLink proposalId={p.proposalId} />
           </nav>
-          {p.diff && (
-            <span className="ml-auto flex items-center gap-2 pr-3 font-mono text-xs font-bold tabular-nums">
-              <span className="text-emerald-600 dark:text-emerald-400">+{p.diff.added}</span>
-              <span className="text-destructive">&minus;{p.diff.removed}</span>
+          {p.hub && (
+            <span className="ml-auto flex items-center pr-3">
+              <HubStatus hub={p.hub} />
             </span>
           )}
-          <div className={cn("flex items-stretch border-l border-border", !p.diff && "ml-auto")}>
+          <div className={cn("flex items-stretch border-l border-border", !p.hub && "ml-auto")}>
             <StatusBlip verification={p.verification} />
             {p.repo.url && (
               <IconButton href={p.repo.url} label="View repository on GitHub">
@@ -619,7 +676,7 @@ export function ProposalDetailV2({ proposal: p }: ProposalDetailV2Props) {
           >
             {hasReview && (
               <div className="px-3 pb-3 pl-[1.375rem]">
-                <p className="text-sm font-medium leading-snug text-foreground">{c.subject}</p>
+                <p className="break-words text-sm font-medium leading-snug text-foreground">{c.subject}</p>
                 <Markdown className="mt-1 text-muted-foreground">{c.review!}</Markdown>
               </div>
             )}
@@ -699,7 +756,7 @@ export function ProposalDetailV2({ proposal: p }: ProposalDetailV2Props) {
                   <li key={i} className="flex gap-2 py-1.5">
                     <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm leading-snug text-foreground">
+                      <p className="break-words text-sm leading-snug text-foreground">
                         {ev.url ? (
                           <a
                             href={ev.url}
@@ -754,16 +811,16 @@ export function ProposalDetailV2({ proposal: p }: ProposalDetailV2Props) {
                       href={s.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 text-foreground underline decoration-muted-foreground/50 underline-offset-2 hover:decoration-foreground"
+                      className="flex items-start gap-1.5 break-words text-foreground underline decoration-muted-foreground/50 underline-offset-2 hover:decoration-foreground"
                     >
-                      <LinkIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
-                      {s.label}
+                      <LinkIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
+                      <span className="min-w-0 break-words">{s.label}</span>
                     </a>
                   </li>
                 ) : (
-                  <li key={s.label} className="flex items-center gap-1.5 text-muted-foreground">
-                    <LinkIcon className="h-3.5 w-3.5 shrink-0 opacity-50" aria-hidden />
-                    {s.label}
+                  <li key={s.label} className="flex items-start gap-1.5 break-words text-muted-foreground">
+                    <LinkIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 opacity-50" aria-hidden />
+                    <span className="min-w-0 break-words">{s.label}</span>
                   </li>
                 )
               )}

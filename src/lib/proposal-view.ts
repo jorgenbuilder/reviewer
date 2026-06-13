@@ -11,6 +11,8 @@ import type { ParsedProposal } from "./design-stub";
 import { getProposal, TOPIC_NAMES } from "./nns";
 import { parseProposalSummary, commitUrl } from "./parse-proposal";
 import { getProposalVote } from "./proposal-vote";
+import { getHubStatus } from "./review-hub";
+import { getCanisterLabel } from "./canister-name";
 import { getVerificationStatusForProposals, getMultipleCommitStats, getDashboardUrl } from "./github";
 import {
   getLatestCommentary,
@@ -69,14 +71,17 @@ export async function buildParsedProposal(id: string): Promise<ParsedProposal | 
   if (!proposal) return null;
 
   const parse = parseProposalSummary(proposal.summary);
-  const [vstatusMap, vote, commentary, diff, reviewState, events] = await Promise.all([
-    getVerificationStatusForProposals([id]),
-    getProposalVote(id),
-    getLatestCommentary(id),
-    getProposalDiffStats(id),
-    getReviewPostState(id),
-    getProposalEvents({ proposalId: id, limit: 50 }),
-  ]);
+  const [vstatusMap, vote, commentary, diff, reviewState, events, hub, canisterLabel] =
+    await Promise.all([
+      getVerificationStatusForProposals([id]),
+      getProposalVote(id),
+      getLatestCommentary(id),
+      getProposalDiffStats(id),
+      getReviewPostState(id),
+      getProposalEvents({ proposalId: id, limit: 50 }),
+      getHubStatus(id),
+      getCanisterLabel(proposal.canisterId),
+    ]);
 
   // Per-commit stats + AI review summaries.
   const commitStats = await getMultipleCommitStats(parse.commits.map((c) => c.hash)).catch(() => new Map());
@@ -139,6 +144,7 @@ export async function buildParsedProposal(id: string): Promise<ParsedProposal | 
     diff: diff && (diff.linesAdded != null || diff.linesRemoved != null)
       ? { added: diff.linesAdded ?? 0, removed: diff.linesRemoved ?? 0 }
       : undefined,
+    hub: hub ?? undefined,
     reviewPostUrl: reviewPostedEvent?.detail ?? null,
     commentary: commentary
       ? {
@@ -162,7 +168,9 @@ export async function buildParsedProposal(id: string): Promise<ParsedProposal | 
       url: e.detail && /^https?:\/\//.test(e.detail) ? e.detail : undefined,
     })),
     onchain: {
-      canisterName: deriveCanisterName(proposal.title, proposal.canisterId),
+      // Prefer the on-chain canister ID's canonical label; fall back to parsing
+      // the proposal title only when the ID is unknown to the dashboard.
+      canisterName: canisterLabel || deriveCanisterName(proposal.title, proposal.canisterId),
       shortCommit: targetCommit.slice(0, 7),
       statement: proposal.summary,
       dashboardUrl: getDashboardUrl(id),

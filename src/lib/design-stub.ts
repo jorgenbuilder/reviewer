@@ -62,6 +62,15 @@ export interface ParsedProposal {
     healingIteration?: number;
   };
   diff?: { added: number; removed: number };
+  /**
+   * Review-hub status (NNS Technical Review Hub canister), shown in the top bar.
+   * "done"/"miss" are terminal; "pending" carries the deadline (epoch ms) so the
+   * UI counts down to it. Absent when the hub doesn't track the proposal.
+   */
+  hub?:
+    | { state: "done" }
+    | { state: "miss" }
+    | { state: "pending"; deadlineMs: number };
   reviewPostUrl?: string | null;
   /**
    * AI commentary, mirroring the content the live CommentaryWidget shows
@@ -184,6 +193,7 @@ const upgrade: ParsedProposal = {
       "https://github.com/jorgenbuilder/gh-verifier/actions/runs/27476493036",
   },
   diff: { added: 40, removed: 6 },
+  hub: { state: "pending", deadlineMs: Date.UTC(2026, 11, 31, 12, 0, 0) },
   reviewPostUrl: null,
   commentary: {
     title: "Registry: engine-controller authorization for CloudEngine subnets",
@@ -309,6 +319,7 @@ const install: ParsedProposal = {
     healingIteration: 2,
   },
   diff: { added: 612, removed: 0 },
+  hub: { state: "done" },
   reviewPostUrl: null,
   commentary: {
     title: "engine-controller: new privileged canister, installed inert",
@@ -404,6 +415,7 @@ const legacy: ParsedProposal = {
   argHash: null,
   verification: { status: "failed", runUrl: undefined },
   diff: undefined,
+  hub: { state: "miss" },
   reviewPostUrl:
     "https://forum.dfinity.org/t/nns-updates-legacy/12345/7",
   commentary: null,
