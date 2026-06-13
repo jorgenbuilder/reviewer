@@ -216,6 +216,46 @@ export async function getProposalsWithoutCanonicalForum(
   return proposalIds.filter(id => !withCanonical.has(id))
 }
 
+// --- Pipeline event log ---
+
+export interface ProposalEvent {
+  id: number;
+  proposal_id: number;
+  event_type: string;
+  detail: string | null;
+  created_at: string;
+}
+
+export async function logProposalEvent(
+  proposalId: string,
+  eventType: string,
+  detail?: string
+): Promise<void> {
+  const { error } = await supabase
+    .from('proposal_events')
+    .insert({ proposal_id: parseInt(proposalId, 10), event_type: eventType, detail: detail?.slice(0, 1000) ?? null })
+  if (error) throw error
+}
+
+export async function hasProposalEvent(proposalId: string, eventType: string): Promise<boolean> {
+  const { data, error } = await supabase
+    .from('proposal_events')
+    .select('id')
+    .eq('proposal_id', parseInt(proposalId, 10))
+    .eq('event_type', eventType)
+    .limit(1)
+  if (error) throw error
+  return (data?.length || 0) > 0
+}
+
+export async function getProposalEvents(opts: { proposalId?: string; limit?: number } = {}): Promise<ProposalEvent[]> {
+  let q = supabase.from('proposal_events').select('*').order('created_at', { ascending: false }).limit(opts.limit ?? 100)
+  if (opts.proposalId) q = q.eq('proposal_id', parseInt(opts.proposalId, 10))
+  const { data, error } = await q
+  if (error) throw error
+  return data || []
+}
+
 // --- Automated verification-note review state ---
 
 // Invariant: the auto-poster only ever acts on proposals dated on/after this cutoff.

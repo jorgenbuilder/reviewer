@@ -45,6 +45,30 @@ export type Database = {
         }
         Relationships: []
       }
+      proposal_events: {
+        Row: {
+          id: number
+          proposal_id: number
+          event_type: string
+          detail: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: number
+          proposal_id: number
+          event_type: string
+          detail?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: number
+          proposal_id?: number
+          event_type?: string
+          detail?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
       proposals_seen: {
         Row: {
           proposal_id: number

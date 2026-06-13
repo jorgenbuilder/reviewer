@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { saveCommentary, getLatestCommentary } from "@/lib/db"
+import { recordEvent } from "@/lib/events"
 import type { CommentaryData } from "@/types/commentary"
 
 // Verify COMMENTARY_SECRET authentication
@@ -76,6 +77,11 @@ export async function POST(
 
     // 4. Save to database
     const saved = await saveCommentary(id, commentary, metadata)
+
+    await recordEvent(id, "commentary_generated", {
+      detail: commentary.analysis_incomplete ? "incomplete" : "complete",
+      push: { title: "Commentary generated", body: `#${id}${commentary.analysis_incomplete ? " (incomplete)" : ""}` },
+    })
 
     console.log(`[commentary] Saved commentary for proposal ${id}`, {
       incomplete: commentary.analysis_incomplete,

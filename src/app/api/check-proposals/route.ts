@@ -21,6 +21,7 @@ import { sendPushNotification } from "@/lib/web-push-server";
 import { sendProposalNotificationEmail } from "@/lib/email";
 import { getCommitDiffStats, getCommitDiffStatsByHash, parseGitHubUrl, getDiffStatsFromCommits } from "@/lib/github";
 import { scheduleDetection } from "@/lib/forum-detect";
+import { recordEvent } from "@/lib/events";
 
 // Verify cron secret or QStash signature
 function verifyAuth(request: Request): boolean {
@@ -128,6 +129,12 @@ export async function POST(request: Request) {
         proposal.url || null,
         proposalTimestamp
       );
+
+      // Log + notify: proposal detected.
+      await recordEvent(proposalIdStr, "proposal_detected", {
+        detail: proposal.title,
+        push: { title: "Proposal detected", body: `#${proposalIdStr}: ${proposal.title}` },
+      });
 
       // Spawn canonical-forum-post detection (self-rescheduling QStash task with backoff).
       // Best-effort: never let a scheduling hiccup break proposal processing.

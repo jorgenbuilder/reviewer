@@ -10,6 +10,7 @@ import { getReviewPostState, markReviewPosted, markReviewFlagged, REVIEW_MIN_PRO
 import { getVerificationStatusForProposals } from "@/lib/github";
 import { auditProposalVerification } from "@/lib/verification-audit";
 import { scheduleDetection } from "@/lib/forum-detect";
+import { recordEvent } from "@/lib/events";
 import {
   topicIdFromUrl,
   hasPostByUser,
@@ -86,6 +87,7 @@ export async function POST(request: NextRequest) {
     const statuses = await getVerificationStatusForProposals([proposalId]);
     const vstatus = statuses.get(proposalId)?.status;
     if (vstatus !== "verified") { log("verification not green:", vstatus); return NextResponse.json({ status: "pending-verification", vstatus }); }
+    await recordEvent(proposalId, "verification_verified", { once: true, push: { title: "Build verified", body: `#${proposalId} verification is green` } });
 
     // Gate 4: independent audit (false-positive guard)
     const audit = await auditProposalVerification(proposalId);
@@ -99,6 +101,7 @@ export async function POST(request: NextRequest) {
       log("AUDIT FLAGGED:", audit.reasons.join("; "));
       await markReviewFlagged(proposalId, audit.reasons.join("; "));
       await sendVerificationFlagEmail(proposalId, audit.reasons, audit.runUrl);
+      await recordEvent(proposalId, "review_flagged", { detail: audit.reasons.join("; "), push: { title: "⚠️ Verification flagged", body: `#${proposalId}: ${audit.reasons[0] || "discrepancy"}` } });
       return NextResponse.json({ status: "flagged", reasons: audit.reasons });
     }
 
@@ -106,6 +109,7 @@ export async function POST(request: NextRequest) {
     const raw = renderVerificationNote({ proposalId, title: audit.title || "", verificationRunUrl: audit.runUrl || "" });
     const posted = await postReply(topicId, raw);
     await markReviewPosted(proposalId, posted.url);
+    await recordEvent(proposalId, "review_posted", { detail: posted.url, push: { title: "Verification note posted", body: `#${proposalId} posted to the forum` } });
     log("✅ posted verification note:", posted.url);
     return NextResponse.json({ status: "posted", url: posted.url });
   } catch (err) {
