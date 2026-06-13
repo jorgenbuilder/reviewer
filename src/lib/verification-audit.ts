@@ -8,7 +8,7 @@
 // which the caller turns into an email alert and refuses to post.
 import { unzipSync, strFromU8 } from "fflate";
 import { getProposal } from "./nns";
-import { getVerificationRunForProposal } from "./github";
+import { getVerificationRunsForProposal } from "./github";
 
 const REPO_OWNER = "jorgenbuilder";
 const REPO_NAME = "gh-verifier";
@@ -105,14 +105,25 @@ export async function auditProposalVerification(proposalId: string): Promise<Aud
     chain,
   });
 
-  const run = await getVerificationRunForProposal(proposalId, true);
-  const runUrl = run?.htmlUrl ?? null;
-  if (!run) { inc.push("no verification run found"); return done(false, runUrl, null, null, null); }
-  if (run.status !== "completed") { inc.push(`run not completed (status=${run.status})`); return done(false, runUrl, null, null, null); }
-  if (run.conclusion !== "success") { inc.push(`run conclusion is "${run.conclusion}", not success`); return done(false, runUrl, null, null, null); }
+  // A proposal can have several runs (re-triggers, skipped runs that upload no artifact).
+  // Select the most recent COMPLETED run that actually has a readable verification-result
+  // artifact — not merely the newest run by title.
+  const runs = await getVerificationRunsForProposal(proposalId, true);
+  if (runs.length === 0) { inc.push("no verification run found"); return done(false, null, null, null, null); }
+  const completed = runs.filter((r) => r.status === "completed");
+  if (completed.length === 0) { inc.push(`verification run still in progress (status=${runs[0].status})`); return done(false, runs[0].htmlUrl, null, null, null); }
 
-  const { result: verifier, debug } = await fetchVerifierResult(run.id);
-  if (!verifier) { inc.push(`verification-result artifact unreadable [${debug}]`); }
+  let verifier: VerifierResult | null = null;
+  let runUrl: string | null = completed[0].htmlUrl;
+  let chosen = completed[0];
+  let lastDebug = "no completed run had a readable artifact";
+  for (const r of completed.slice(0, 6)) {
+    const vr = await fetchVerifierResult(r.id);
+    if (vr.result) { verifier = vr.result; runUrl = r.htmlUrl; chosen = r; break; }
+    lastDebug = `run ${r.id}: ${vr.debug}`;
+  }
+  if (!verifier) { inc.push(`verification-result artifact unreadable [${lastDebug}]`); }
+  else if (chosen.conclusion !== "success") { reasons.push(`verification run concluded "${chosen.conclusion}", not success`); }
 
   const chainDetail = await getProposal(BigInt(proposalId));
   if (!chainDetail) { inc.push("could not read proposal from chain"); return done(false, runUrl, null, verifier, null); }

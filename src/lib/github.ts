@@ -10,6 +10,43 @@ export interface ActionRun {
   createdAt: string;
 }
 
+// All runs matching a proposal, most-recent-first. A proposal can have multiple runs
+// (re-triggers, skips); callers that need the one with a result must pick accordingly.
+export async function getVerificationRunsForProposal(
+  proposalId: string,
+  useAuth = false
+): Promise<ActionRun[]> {
+  try {
+    const headers: Record<string, string> = { Accept: "application/vnd.github.v3+json" };
+    const fetchOptions: RequestInit = { headers };
+    if (useAuth && process.env.GITHUB_TOKEN) {
+      headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
+      fetchOptions.cache = "no-store";
+    } else {
+      fetchOptions.next = { revalidate: 60 };
+    }
+    const response = await fetch(
+      `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/actions/runs?per_page=100`,
+      fetchOptions
+    );
+    if (!response.ok) return [];
+    const data = await response.json();
+    return (data.workflow_runs || [])
+      .filter((r: { display_title?: string }) => r.display_title?.includes(`Verify Proposal #${proposalId}`))
+      .map((r: { id: number; display_title: string; status: ActionRun["status"]; conclusion: ActionRun["conclusion"]; html_url: string; created_at: string }) => ({
+        id: r.id,
+        displayTitle: r.display_title,
+        status: r.status,
+        conclusion: r.conclusion,
+        htmlUrl: r.html_url,
+        createdAt: r.created_at,
+      }));
+  } catch (error) {
+    console.error("Failed to fetch GitHub actions:", error);
+    return [];
+  }
+}
+
 export async function getVerificationRunForProposal(
   proposalId: string,
   useAuth = false
