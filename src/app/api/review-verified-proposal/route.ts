@@ -6,7 +6,7 @@
 // Body: { proposalId: string }
 import { NextRequest, NextResponse } from "next/server";
 import { Receiver } from "@upstash/qstash";
-import { getReviewPostState, markReviewPosted, markReviewFlagged } from "@/lib/db";
+import { getReviewPostState, markReviewPosted, markReviewFlagged, REVIEW_MIN_PROPOSAL_DATE } from "@/lib/db";
 import { getVerificationStatusForProposals } from "@/lib/github";
 import { auditProposalVerification } from "@/lib/verification-audit";
 import {
@@ -52,8 +52,13 @@ export async function POST(request: NextRequest) {
 
   try {
     // Gate 1: not already handled
-    const { state, canonicalForumUrl } = await getReviewPostState(proposalId);
+    const { state, canonicalForumUrl, proposalTimestamp } = await getReviewPostState(proposalId);
     if (state) { log("already", state); return NextResponse.json({ status: state }); }
+    // Invariant: never act on proposals dated before the cutoff (no backlog).
+    if (!proposalTimestamp || new Date(proposalTimestamp) < new Date(REVIEW_MIN_PROPOSAL_DATE)) {
+      log("before cutoff or no timestamp; skipping", proposalTimestamp);
+      return NextResponse.json({ status: "before-cutoff" });
+    }
     if (!canonicalForumUrl) { log("no canonical thread yet"); return NextResponse.json({ status: "no-canonical" }); }
     const topicId = topicIdFromUrl(canonicalForumUrl);
     if (!topicId) { log("bad canonical url", canonicalForumUrl); return NextResponse.json({ status: "bad-canonical-url" }); }

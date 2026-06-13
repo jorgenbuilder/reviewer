@@ -218,6 +218,11 @@ export async function getProposalsWithoutCanonicalForum(
 
 // --- Automated verification-note review state ---
 
+// Invariant: the auto-poster only ever acts on proposals dated on/after this cutoff.
+// Older proposals are never verification-checked or posted (avoids touching the backlog /
+// already-decided proposals). Override with REVIEW_MIN_PROPOSAL_DATE (ISO).
+export const REVIEW_MIN_PROPOSAL_DATE = process.env.REVIEW_MIN_PROPOSAL_DATE || '2026-06-13T00:00:00Z';
+
 export interface ReviewCandidate {
   proposalId: string;
   title: string | null;
@@ -225,11 +230,13 @@ export interface ReviewCandidate {
 }
 
 // Proposals that have a canonical thread but haven't been handled by the review poster yet.
+// Restricted to proposals dated on/after REVIEW_MIN_PROPOSAL_DATE.
 export async function getProposalsAwaitingReview(limit = 25): Promise<ReviewCandidate[]> {
   const { data: pending, error } = await supabase
     .from('proposals_seen')
     .select('proposal_id, title')
     .is('review_post_state', null)
+    .gte('proposal_timestamp', REVIEW_MIN_PROPOSAL_DATE)
     .order('seen_at', { ascending: false })
     .limit(200)
 
@@ -258,10 +265,10 @@ export async function getProposalsAwaitingReview(limit = 25): Promise<ReviewCand
 
 export async function getReviewPostState(
   proposalId: string
-): Promise<{ state: string | null; canonicalForumUrl: string | null }> {
+): Promise<{ state: string | null; canonicalForumUrl: string | null; proposalTimestamp: string | null }> {
   const { data, error } = await supabase
     .from('proposals_seen')
-    .select('review_post_state')
+    .select('review_post_state, proposal_timestamp')
     .eq('proposal_id', parseInt(proposalId, 10))
     .maybeSingle()
   if (error) throw error
@@ -274,7 +281,11 @@ export async function getReviewPostState(
     .limit(1)
     .maybeSingle()
 
-  return { state: data?.review_post_state ?? null, canonicalForumUrl: thread?.forum_url ?? null }
+  return {
+    state: data?.review_post_state ?? null,
+    canonicalForumUrl: thread?.forum_url ?? null,
+    proposalTimestamp: data?.proposal_timestamp ?? null,
+  }
 }
 
 export async function markReviewPosted(proposalId: string, postUrl: string): Promise<void> {
