@@ -5,11 +5,23 @@
 // QStash delivers to /api/detect-forum-post.
 import { Client } from "@upstash/qstash";
 
-// Delay (seconds) before each attempt index. ~1m → 24h, spanning ~3 days total.
-export const DETECT_BACKOFF_SECONDS = [
-  60, 300, 900, 1800, 3600, 7200, 14400, 28800, 43200, 86400, 86400, 86400,
-];
-export const MAX_DETECT_ATTEMPTS = DETECT_BACKOFF_SECONDS.length;
+// Adaptive canonical-detection cadence. The interval depends on the SITUATION:
+//  - not verified yet  → relaxed backoff to a 30-min floor (we can't post anyway).
+//  - verified, no post  → tight cadence to a 5-min floor (only the forum post is missing,
+//    so catch it fast). The gh-verifier completion callback flips us into this mode.
+// Both converge to a steady-state floor (the durable backstop loop).
+const NORMAL_BACKOFF = [60, 300, 900, 1800];
+const NORMAL_FLOOR = 1800; // 30 min
+const VERIFIED_BACKOFF = [60, 60, 120, 120, 300];
+const VERIFIED_FLOOR = 300; // 5 min
+// Generous lifetime cap so the loop eventually stops for a proposal that never gets a thread.
+export const MAX_DETECT_ATTEMPTS = 240;
+
+function nextDelaySeconds(attempt: number, verified: boolean): number {
+  const table = verified ? VERIFIED_BACKOFF : NORMAL_BACKOFF;
+  const floor = verified ? VERIFIED_FLOOR : NORMAL_FLOOR;
+  return attempt < table.length ? table[attempt] : floor;
+}
 
 function appUrl(): string {
   const u =
@@ -33,12 +45,12 @@ function client(): Client {
  * Schedule detection attempt `attempt` (0-based) for a proposal via QStash.
  * Returns false (without enqueueing) when attempts are exhausted.
  */
-export async function scheduleDetection(proposalId: string, attempt: number): Promise<boolean> {
+export async function scheduleDetection(proposalId: string, attempt: number, verified = false): Promise<boolean> {
   if (attempt >= MAX_DETECT_ATTEMPTS) return false;
   await client().publishJSON({
     url: `${appUrl()}/api/detect-forum-post`,
     body: { proposalId, attempt },
-    delay: DETECT_BACKOFF_SECONDS[attempt],
+    delay: nextDelaySeconds(attempt, verified),
   });
   return true;
 }

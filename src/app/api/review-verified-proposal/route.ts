@@ -9,6 +9,7 @@ import { Receiver } from "@upstash/qstash";
 import { getReviewPostState, markReviewPosted, markReviewFlagged, REVIEW_MIN_PROPOSAL_DATE } from "@/lib/db";
 import { getVerificationStatusForProposals } from "@/lib/github";
 import { auditProposalVerification } from "@/lib/verification-audit";
+import { scheduleDetection } from "@/lib/forum-detect";
 import {
   topicIdFromUrl,
   hasPostByUser,
@@ -59,7 +60,17 @@ export async function POST(request: NextRequest) {
       log("before cutoff or no timestamp; skipping", proposalTimestamp);
       return NextResponse.json({ status: "before-cutoff" });
     }
-    if (!canonicalForumUrl) { log("no canonical thread yet"); return NextResponse.json({ status: "no-canonical" }); }
+    if (!canonicalForumUrl) {
+      // Verify-first ordering (e.g. the gh-verifier callback fired before the forum thread
+      // exists). If verified, switch canonical detection into tight mode so we catch the post
+      // ASAP; the detect loop will kick us back when it lands.
+      const verified = (await getVerificationStatusForProposals([proposalId])).get(proposalId)?.status === "verified";
+      if (verified) {
+        await scheduleDetection(proposalId, 0, true).catch((e) => log("tight-detect kick warn:", (e as Error).message));
+        log("no canonical yet; switched detection to tight mode");
+      }
+      return NextResponse.json({ status: "no-canonical", tightDetection: verified });
+    }
     const topicId = topicIdFromUrl(canonicalForumUrl);
     if (!topicId) { log("bad canonical url", canonicalForumUrl); return NextResponse.json({ status: "bad-canonical-url" }); }
 

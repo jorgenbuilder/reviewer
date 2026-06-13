@@ -11,6 +11,7 @@ import { Receiver } from "@upstash/qstash";
 import { addForumThread, hasCanonicalForumThread } from "@/lib/db";
 import { findCanonicalThread, ForumAuthError } from "@/lib/forum";
 import { scheduleDetection, enqueueReviewCheck } from "@/lib/forum-detect";
+import { getVerificationStatusForProposals } from "@/lib/github";
 import { sendForumCredentialAlertEmail } from "@/lib/email";
 
 async function verifyQStashSignature(signature: string | null, body: string): Promise<boolean> {
@@ -61,9 +62,11 @@ export async function POST(request: NextRequest) {
       await enqueueReviewCheck(proposalId).catch((e) => log("review enqueue warn:", (e as Error).message));
       return NextResponse.json({ status: "found", url: thread.url });
     }
-    const more = await scheduleDetection(proposalId, attempt + 1);
-    log(more ? `not found; rescheduled attempt ${attempt + 1}` : "not found; attempts exhausted");
-    return NextResponse.json({ status: more ? "rescheduled" : "exhausted" });
+    // Adaptive cadence: once verification is green, poll tight (only the post is missing).
+    const verified = (await getVerificationStatusForProposals([proposalId]).catch(() => null))?.get(proposalId)?.status === "verified";
+    const more = await scheduleDetection(proposalId, attempt + 1, verified);
+    log(more ? `not found; rescheduled attempt ${attempt + 1} (${verified ? "verified/tight" : "normal"})` : "not found; attempts exhausted");
+    return NextResponse.json({ status: more ? "rescheduled" : "exhausted", verified });
   } catch (err) {
     if (err instanceof ForumAuthError) {
       // Dead/invalid key: alert and stop — do NOT reschedule (would just fail again).
