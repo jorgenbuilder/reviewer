@@ -146,6 +146,14 @@ export function ReviewSubmitWidget({ proposalId }: ReviewSubmitWidgetProps) {
                 })}</>
               )}
             </p>
+            <a
+              href={reviewStatus.reviewForumUrl!}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block text-sm text-primary underline break-all line-clamp-2"
+            >
+              {reviewStatus.reviewForumUrl}
+            </a>
             <div className="flex gap-2">
               <Button size="sm" asChild>
                 <a

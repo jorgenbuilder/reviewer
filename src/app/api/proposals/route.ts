@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
-import { getRecentProposals, getLatestCommentaryTitles, getForumThreadsForProposals } from "@/lib/db";
+import { NextRequest, NextResponse } from "next/server";
+import { getRecentProposals, getLatestCommentaryTitles, getForumThreadsForProposals, getProposalReviewStatus } from "@/lib/db";
 import { getVerificationStatusForProposals, VerificationStatus } from "@/lib/github";
 
 export interface ProposalResponse {
@@ -22,7 +22,26 @@ export interface ProposalResponse {
   linesRemoved: number | null;
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  // Single-proposal review status (used by the detail page's review widget). Without this,
+  // `?proposalId=` was ignored and the full list was returned, so the widget never saw a
+  // `reviewForumUrl` and always rendered the submission form even after a post existed.
+  const proposalId = request.nextUrl.searchParams.get("proposalId");
+  if (proposalId) {
+    try {
+      const status = await getProposalReviewStatus(proposalId);
+      return NextResponse.json(
+        status ?? { viewerSeenAt: null, reviewForumUrl: null, reviewedAt: null }
+      );
+    } catch (error) {
+      console.error(`Failed to fetch review status for ${proposalId}:`, error);
+      return NextResponse.json(
+        { error: "Failed to fetch review status" },
+        { status: 500 }
+      );
+    }
+  }
+
   try {
     const proposals = await getRecentProposals(50);
     const proposalIds = proposals.map((p) => p.proposal_id);
