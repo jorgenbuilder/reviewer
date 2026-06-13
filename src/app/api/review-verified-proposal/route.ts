@@ -58,25 +58,32 @@ export async function POST(request: NextRequest) {
     const topicId = topicIdFromUrl(canonicalForumUrl);
     if (!topicId) { log("bad canonical url", canonicalForumUrl); return NextResponse.json({ status: "bad-canonical-url" }); }
 
-    // Gate 2: verification must be green (live). If not yet, no-op; the reconciler retries.
-    const statuses = await getVerificationStatusForProposals([proposalId]);
-    const vstatus = statuses.get(proposalId)?.status;
-    if (vstatus !== "verified") { log("verification not green:", vstatus); return NextResponse.json({ status: "pending-verification", vstatus }); }
-
-    // Gate 3: independent audit (false-positive guard)
-    const audit = await auditProposalVerification(proposalId);
-    if (!audit.ok) {
-      log("AUDIT FAILED:", audit.reasons.join("; "));
-      await markReviewFlagged(proposalId, audit.reasons.join("; "));
-      await sendVerificationFlagEmail(proposalId, audit.reasons, audit.runUrl);
-      return NextResponse.json({ status: "flagged", reasons: audit.reasons });
-    }
-
-    // Gate 4: idempotency — has the posting user already replied in this topic?
+    // Gate 2: idempotency FIRST — if the posting user already replied in this topic (e.g. a
+    // manual review), mark posted and stop. Cheaply resolves the backlog without auditing.
     if (await hasPostByUser(topicId, FORUM_POST_USERNAME)) {
       log("user already posted in topic; marking posted");
       await markReviewPosted(proposalId, canonicalForumUrl);
       return NextResponse.json({ status: "already-posted" });
+    }
+
+    // Gate 3: verification must be green (live). If not yet, no-op; the reconciler retries.
+    const statuses = await getVerificationStatusForProposals([proposalId]);
+    const vstatus = statuses.get(proposalId)?.status;
+    if (vstatus !== "verified") { log("verification not green:", vstatus); return NextResponse.json({ status: "pending-verification", vstatus }); }
+
+    // Gate 4: independent audit (false-positive guard)
+    const audit = await auditProposalVerification(proposalId);
+    if (audit.inconclusive) {
+      // Can't confirm yet (e.g. run predates the result artifact). Skip silently; leave the
+      // proposal unhandled so a later re-verification can resolve it. No flag, no email.
+      log("inconclusive, leaving pending:", audit.inconclusiveReasons.join("; "));
+      return NextResponse.json({ status: "inconclusive", reasons: audit.inconclusiveReasons });
+    }
+    if (!audit.ok) {
+      log("AUDIT FLAGGED:", audit.reasons.join("; "));
+      await markReviewFlagged(proposalId, audit.reasons.join("; "));
+      await sendVerificationFlagEmail(proposalId, audit.reasons, audit.runUrl);
+      return NextResponse.json({ status: "flagged", reasons: audit.reasons });
     }
 
     // Post the factual verification note.

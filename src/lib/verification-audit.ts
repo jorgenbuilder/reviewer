@@ -27,8 +27,12 @@ interface VerifierResult {
 }
 
 export interface AuditResult {
-  ok: boolean;
-  reasons: string[]; // why it failed (empty when ok)
+  ok: boolean; // verified clean → safe to post
+  // inconclusive: couldn't determine yet (artifact absent, run pending, chain read failed).
+  // NOT a discrepancy — skip silently, don't flag/email, leave for a later retry.
+  inconclusive: boolean;
+  reasons: string[]; // discrepancy reasons (flag/email) when ok=false && !inconclusive
+  inconclusiveReasons: string[];
   runUrl: string | null;
   title: string | null; // proposal title from chain (authoritative; for the post)
   verifier: VerifierResult | null;
@@ -72,22 +76,30 @@ async function fetchVerifierResult(runId: number): Promise<VerifierResult | null
  * the artifact is present, and gh-verifier's reproduced hashes match the on-chain payload.
  */
 export async function auditProposalVerification(proposalId: string): Promise<AuditResult> {
-  const reasons: string[] = [];
+  const reasons: string[] = []; // real discrepancies → flag + email
+  const inc: string[] = []; // inconclusive → skip silently, retry later
+  const done = (ok: boolean, runUrl: string | null, title: string | null, verifier: VerifierResult | null, chain: AuditResult["chain"]): AuditResult => ({
+    ok,
+    inconclusive: !ok && reasons.length === 0,
+    reasons,
+    inconclusiveReasons: inc,
+    runUrl,
+    title,
+    verifier,
+    chain,
+  });
 
   const run = await getVerificationRunForProposal(proposalId, true);
   const runUrl = run?.htmlUrl ?? null;
-  if (!run) return { ok: false, reasons: ["no verification run found"], runUrl, title: null, verifier: null, chain: null };
-  if (run.status !== "completed") return { ok: false, reasons: [`run not completed (status=${run.status})`], runUrl, title: null, verifier: null, chain: null };
-  if (run.conclusion !== "success") reasons.push(`run conclusion is "${run.conclusion}", not success`);
+  if (!run) { inc.push("no verification run found"); return done(false, runUrl, null, null, null); }
+  if (run.status !== "completed") { inc.push(`run not completed (status=${run.status})`); return done(false, runUrl, null, null, null); }
+  if (run.conclusion !== "success") { inc.push(`run conclusion is "${run.conclusion}", not success`); return done(false, runUrl, null, null, null); }
 
   const verifier = await fetchVerifierResult(run.id);
-  if (!verifier) reasons.push("verification-result artifact missing or unreadable (cannot confirm output)");
+  if (!verifier) { inc.push("verification-result artifact missing/unreadable (run predates the artifact, or not yet available)"); }
 
   const chainDetail = await getProposal(BigInt(proposalId));
-  if (!chainDetail) {
-    reasons.push("could not read proposal from chain");
-    return { ok: false, reasons, runUrl, title: null, verifier, chain: null };
-  }
+  if (!chainDetail) { inc.push("could not read proposal from chain"); return done(false, runUrl, null, verifier, null); }
   const chain = {
     wasmHash: chainDetail.expectedWasmHash,
     argHash: chainDetail.expectedArgHash,
@@ -96,33 +108,28 @@ export async function auditProposalVerification(proposalId: string): Promise<Aud
   };
 
   if (verifier) {
+    // Real discrepancies (the false-positive guard):
     if (!verifier.overallMatch) reasons.push("verifier reported overallMatch=false");
     if (!verifier.wasmMatch) reasons.push("verifier reported wasmMatch=false");
     if (!verifier.actualWasmHash) reasons.push("verifier produced no actual wasm hash (blank output)");
-
-    // The core false-positive guard, when the chain exposes the hash directly (InstallCode):
     if (chain.wasmHash) {
-      // verifier read the SAME proposal we did
       if (verifier.expectedWasmHash && norm(verifier.expectedWasmHash) !== norm(chain.wasmHash)) {
         reasons.push("verifier's expected wasm hash does not match the on-chain proposal");
       }
-      // the REPRODUCED build matches what's on chain (the substance of "verified")
       if (verifier.actualWasmHash && norm(verifier.actualWasmHash) !== norm(chain.wasmHash)) {
         reasons.push("reproduced wasm hash does not match the on-chain wasm hash");
       }
-      // arg hash, when present on chain
       if (chain.argHash) {
         if (!verifier.argMatch) reasons.push("verifier reported argMatch=false");
         if (verifier.actualArgHash && norm(verifier.actualArgHash) !== norm(chain.argHash)) {
           reasons.push("reproduced arg hash does not match the on-chain arg hash");
         }
       }
-    } else {
-      // Legacy ExecuteNnsFunction: no on-chain hash to compare against — the hash only exists
-      // by reproducing the embedded wasm. We can only rely on the verifier's own overallMatch.
-      // (Flagged as a note, not a failure, but we require overallMatch above.)
     }
+    // Legacy ExecuteNnsFunction (no on-chain hash): rely on verifier.overallMatch (checked above).
   }
 
-  return { ok: reasons.length === 0, reasons, runUrl, title: chainDetail.title, verifier, chain };
+  // ok only if artifact present AND no discrepancies AND no inconclusive notes.
+  const ok = !!verifier && reasons.length === 0 && inc.length === 0;
+  return done(ok, runUrl, chainDetail.title, verifier, chain);
 }
