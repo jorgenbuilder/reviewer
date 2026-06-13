@@ -344,6 +344,21 @@ export async function markReviewFlagged(proposalId: string, reason: string): Pro
   if (error) throw error
 }
 
+// Closes out a review: the full human review has been posted to the canonical forum thread
+// (editing the auto-note in place) AND pushed to the review-hub canister. Terminal state.
+// Only call after BOTH succeed, so 'final' means the review is fully closed.
+export async function markReviewFinalized(proposalId: string, postUrl: string): Promise<void> {
+  const { error } = await supabase
+    .from('proposals_seen')
+    .update({
+      review_post_state: 'final',
+      review_post_url: postUrl,
+      review_finalized_at: new Date().toISOString(),
+    })
+    .eq('proposal_id', parseInt(proposalId, 10))
+  if (error) throw error
+}
+
 export async function hasCanonicalForumThread(
   proposalId: string
 ): Promise<boolean> {
