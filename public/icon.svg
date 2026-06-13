@@ -1,6 +1,38 @@
 <svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <rect width="512" height="512" rx="96" fill="#09090b"/>
-  <path d="M256 120C181.3 120 120 181.3 120 256C120 330.7 181.3 392 256 392C330.7 392 392 330.7 392 256C392 181.3 330.7 120 256 120ZM256 360C199.1 360 152 312.9 152 256C152 199.1 199.1 152 256 152C312.9 152 360 199.1 360 256C360 312.9 312.9 360 256 360Z" fill="white"/>
-  <path d="M256 184C216.3 184 184 216.3 184 256C184 295.7 216.3 328 256 328C295.7 328 328 295.7 328 256C328 216.3 295.7 184 256 184ZM256 296C234 296 216 278 216 256C216 234 234 216 256 216C278 216 296 234 296 256C296 278 278 296 256 296Z" fill="white"/>
-  <circle cx="256" cy="256" r="24" fill="white"/>
+  <!-- Proposal Reviewer Portal — "The Inspector" mascot. Monochrome zinc palette. -->
+  <rect width="512" height="512" rx="112" fill="#09090b"/>
+
+  <!-- Trench coat -->
+  <path d="M152 474 L178 358 Q184 336 208 334 L304 334 Q328 336 334 358 L360 474 Z" fill="#a1a1aa"/>
+  <!-- Neck -->
+  <rect x="234" y="314" width="44" height="40" rx="10" fill="#e4e4e7"/>
+  <!-- Popped collar / lapels -->
+  <path d="M256 334 L208 334 Q214 367 236 381 L256 352 Z" fill="#52525b"/>
+  <path d="M256 334 L304 334 Q298 367 276 381 L256 352 Z" fill="#52525b"/>
+  <path d="M256 352 L256 452" stroke="#52525b" stroke-width="5" stroke-linecap="round"/>
+
+  <!-- Face -->
+  <rect x="190" y="192" width="132" height="140" rx="58" fill="#e4e4e7"/>
+  <!-- Ear flaps -->
+  <ellipse cx="176" cy="236" rx="20" ry="40" fill="#fafafa"/>
+  <ellipse cx="336" cy="236" rx="20" ry="40" fill="#fafafa"/>
+
+  <!-- Deerstalker brim + double bills -->
+  <path d="M146 196 L121 189 L150 209 Z" fill="#a1a1aa"/>
+  <path d="M366 196 L391 189 L362 209 Z" fill="#a1a1aa"/>
+  <ellipse cx="256" cy="196" rx="110" ry="22" fill="#a1a1aa"/>
+  <!-- Crown -->
+  <path d="M186 198 C186 134 210 112 256 112 C302 112 326 134 326 198 Z" fill="#fafafa"/>
+  <!-- Top knot / tied bow -->
+  <path d="M256 108 L233 97 L233 119 Z" fill="#a1a1aa"/>
+  <path d="M256 108 L279 97 L279 119 Z" fill="#a1a1aa"/>
+  <circle cx="256" cy="108" r="7" fill="#71717a"/>
+
+  <!-- Infinity-symbol eyes (open figure-eight so loops read clearly) -->
+  <path d="M256 250 C252 226 208 226 204 250 C208 274 252 274 256 250 C260 226 304 226 308 250 C312 274 260 274 256 250 Z"
+        fill="none" stroke="#18181b" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Nose -->
+  <path d="M256 268 L256 282" stroke="#3f3f46" stroke-width="7" stroke-linecap="round"/>
+  <!-- Mouth -->
+  <path d="M240 298 Q256 310 272 298" stroke="#18181b" stroke-width="9" stroke-linecap="round" fill="none"/>
 </svg>
