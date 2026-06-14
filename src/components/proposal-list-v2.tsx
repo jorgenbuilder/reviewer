@@ -157,7 +157,7 @@ export function ProposalListV2() {
         {/* Fixed top bar — mirrors the detail page: spacer reserves height, bar
             is fixed and centred on the same column. */}
         <header className="h-[38px]">
-          <div className="fixed left-1/2 top-0 z-30 flex w-full max-w-2xl -translate-x-1/2 items-stretch border-y border-border bg-background">
+          <div className="fixed left-1/2 top-0 z-30 flex h-[38px] w-full max-w-2xl -translate-x-1/2 items-stretch border-y border-border bg-background">
             <div className="flex min-w-0 flex-1 items-center gap-2 pl-3 font-mono text-xs">
               <span className="font-bold uppercase tracking-wide text-foreground">Proposals</span>
               <span className="text-muted-foreground/60">{proposals.length}</span>
