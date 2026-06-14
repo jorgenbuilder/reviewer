@@ -44,29 +44,16 @@ const hubIdlFactory = () => {
     timestamp: IDL.Int,
     topic: IDL.Nat,
   });
-  const ProposalWithCounts = IDL.Record({
-    adoptCount: IDL.Nat,
-    creationDate: IDL.Int,
-    deadline: IDL.Int,
-    deadlineDate: IDL.Int,
-    proposalId: IDL.Nat,
-    rejectCount: IDL.Nat,
-    timestamp: IDL.Int,
-    title: IDL.Text,
-    topic: IDL.Nat,
-    totalReviewCount: IDL.Nat,
-  });
   return IDL.Service({
-    getProposal: IDL.Func([IDL.Nat], [IDL.Opt(Proposal)], ["query"]),
-    getProposals: IDL.Func([IDL.Opt(IDL.Nat)], [IDL.Vec(ProposalWithCounts)], ["query"]),
+    // Proposals assigned to the reviewer with no review yet (and before deadline).
+    getReviewerTodos: IDL.Func([IDL.Principal], [IDL.Vec(Proposal)], ["query"]),
     getReviewerReviewHistory: IDL.Func([IDL.Principal], [IDL.Vec(Review)], ["query"]),
     getReviewerMissedProposals: IDL.Func([IDL.Principal], [IDL.Vec(Proposal)], ["query"]),
   });
 };
 
 interface HubActor {
-  getProposal: (id: bigint) => Promise<[{ deadline: bigint }] | []>;
-  getProposals: (topic: []) => Promise<{ proposalId: bigint; deadline: bigint }[]>;
+  getReviewerTodos: (p: Principal) => Promise<{ proposalId: bigint; deadline: bigint }[]>;
   getReviewerReviewHistory: (p: Principal) => Promise<{ proposalId: bigint }[]>;
   getReviewerMissedProposals: (p: Principal) => Promise<{ proposalId: bigint }[]>;
 }
@@ -89,23 +76,24 @@ export type HubStatus =
 
 /**
  * Hub review status for a proposal, for jorgenbuilder's reviewer identity.
- * Returns null if the proposal isn't tracked by the hub or the canister read fails.
+ * "pending" only when the proposal is actually ASSIGNED to the reviewer and
+ * unreviewed (a todo). Returns null if it isn't assigned/tracked or the read fails.
  */
 export async function getHubStatus(proposalId: string): Promise<HubStatus | null> {
   try {
     const hub = await hubActor();
     const pid = BigInt(proposalId);
     const reviewer = Principal.fromText(REVIEWER_PRINCIPAL);
-    const [history, missed, proposalOpt] = await Promise.all([
+    const [history, missed, todos] = await Promise.all([
       hub.getReviewerReviewHistory(reviewer),
       hub.getReviewerMissedProposals(reviewer),
-      hub.getProposal(pid),
+      hub.getReviewerTodos(reviewer),
     ]);
     if (history.some((r) => r.proposalId === pid)) return { state: "done" };
     if (missed.some((p) => p.proposalId === pid)) return { state: "miss" };
-    const proposal = proposalOpt[0];
-    if (!proposal) return null;
-    return { state: "pending", deadlineMs: Number(proposal.deadline / 1_000_000n) };
+    const todo = todos.find((p) => p.proposalId === pid);
+    if (todo) return { state: "pending", deadlineMs: Number(todo.deadline / 1_000_000n) };
+    return null; // not assigned to this reviewer
   } catch {
     return null;
   }
@@ -113,27 +101,29 @@ export async function getHubStatus(proposalId: string): Promise<HubStatus | null
 
 /**
  * Hub status for many proposals in one batch of reads (for the list page).
- * Three canister queries total — history, missed, and all proposals with their
- * deadlines — keyed by proposal id (string). Returns an empty map on failure.
+ * Three canister queries total — the reviewer's todos (assigned + unreviewed),
+ * missed, and review history — keyed by proposal id (string). Only proposals
+ * RELEVANT to the reviewer get a status; everything else is absent (so the list
+ * and reminders never act on canisters the reviewer isn't assigned). Empty map
+ * on failure.
  */
 export async function getHubStatusMap(): Promise<Map<string, HubStatus>> {
   const map = new Map<string, HubStatus>();
   try {
     const hub = await hubActor();
     const reviewer = Principal.fromText(REVIEWER_PRINCIPAL);
-    const [history, missed, proposals] = await Promise.all([
+    const [history, missed, todos] = await Promise.all([
       hub.getReviewerReviewHistory(reviewer),
       hub.getReviewerMissedProposals(reviewer),
-      hub.getProposals([]),
+      hub.getReviewerTodos(reviewer),
     ]);
-    // Base: every tracked proposal is pending with its deadline.
-    for (const p of proposals) {
+    // Pending only for proposals actually assigned to the reviewer.
+    for (const p of todos) {
       map.set(p.proposalId.toString(), {
         state: "pending",
         deadlineMs: Number(p.deadline / 1_000_000n),
       });
     }
-    // Terminal states override (a proposal can't be both, but done wins last).
     for (const p of missed) map.set(p.proposalId.toString(), { state: "miss" });
     for (const r of history) map.set(r.proposalId.toString(), { state: "done" });
   } catch {
