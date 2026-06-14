@@ -63,6 +63,28 @@ function relativeTime(iso: string | null): string {
   return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
+// Skeleton row matching ProposalRow's layout: id line, two title lines, meta.
+function ProposalRowSkeleton() {
+  const bar = "animate-pulse rounded-none bg-muted";
+  return (
+    <div className="border-b border-border px-3 py-3">
+      <div className="flex items-center gap-2">
+        <div className={cn(bar, "h-3 w-12")} />
+        <div className="ml-auto flex items-center gap-2">
+          <div className={cn(bar, "h-3 w-12")} />
+          <div className={cn(bar, "h-2 w-2 rounded-full")} />
+        </div>
+      </div>
+      <div className={cn(bar, "mt-2 h-4 w-11/12")} />
+      <div className={cn(bar, "mt-1.5 h-4 w-2/3")} />
+      <div className="mt-2 flex items-center gap-2">
+        <div className={cn(bar, "h-3 w-40")} />
+        <div className={cn(bar, "ml-auto h-3 w-14")} />
+      </div>
+    </div>
+  );
+}
+
 function ProposalRow({ p }: { p: Proposal }) {
   const unseen = !p.viewerSeenAt;
   return (
@@ -194,9 +216,7 @@ export function ProposalListV2() {
         )}
 
         {isLoading ? (
-          <div className="px-3 py-16 text-center text-sm text-muted-foreground">
-            <span className="animate-pulse">Loading proposals…</span>
-          </div>
+          Array.from({ length: 8 }).map((_, i) => <ProposalRowSkeleton key={i} />)
         ) : error ? (
           <div className="px-3 py-16 text-center text-sm text-destructive">
             Failed to load proposals. Pull to refresh.

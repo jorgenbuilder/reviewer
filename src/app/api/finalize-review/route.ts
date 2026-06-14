@@ -29,7 +29,17 @@ export async function POST(request: NextRequest) {
 
   try {
     await markReviewFinalized(proposalId, postUrl);
-    await recordEvent(proposalId, "review_finalized", { detail: postUrl });
+    // Push the operator a notification that the final review is live, linking
+    // straight to the forum post (not the proposal page).
+    await recordEvent(proposalId, "review_finalized", {
+      detail: postUrl,
+      once: true, // only the first finalize fires a push, not re-runs
+      push: {
+        title: `Review posted · #${proposalId}`,
+        body: "Final review published to the forum. Tap to read it.",
+        url: postUrl,
+      },
+    });
     return NextResponse.json({ ok: true, proposalId, state: "final", postUrl });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

@@ -501,7 +501,7 @@ export function ProposalDetailV2({ proposal: p }: ProposalDetailV2Props) {
     setOpenCommits((m) => ({ ...m, [hash]: !m[hash] }));
 
   return (
-    <article className="mx-auto w-full max-w-2xl overflow-x-clip bg-background pb-[75vh] text-foreground">
+    <article className="mx-auto w-full max-w-2xl overflow-x-clip bg-background pb-48 text-foreground">
       {/* 1. Header — fixed to the viewport top; the spacer <header> reserves its
           height in flow. The bar is centred on the same max-w-2xl column as the
           article so it lines up on wide screens and is full-width on mobile. */}
@@ -511,15 +511,19 @@ export function ProposalDetailV2({ proposal: p }: ProposalDetailV2Props) {
             border with vertical dividers between them. Status indicator is the
             leftmost button. */}
         <div className="fixed left-1/2 top-0 z-30 flex w-full max-w-2xl -translate-x-1/2 items-stretch border-y border-border bg-background">
-          <nav aria-label="Breadcrumb" className="flex items-center gap-1 pl-3 pr-3 font-mono text-xs text-muted-foreground">
+          <nav aria-label="Breadcrumb" className="flex items-stretch font-mono text-xs text-muted-foreground">
+            {/* Full-height, generously padded home anchor — a comfortable mobile
+                tap target that uses the horizontal space around the separator. */}
             <Link
               href="/"
               aria-label="Back to proposals"
-              className="inline-flex items-center text-muted-foreground hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+              className="flex items-center px-4 text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
             >
-              <Home className="h-3.5 w-3.5" aria-hidden />
+              <Home className="h-4 w-4" aria-hidden />
             </Link>
-            <span className="text-muted-foreground/60" aria-hidden>/</span>
+            <span className="flex items-center pr-3 text-muted-foreground/60" aria-hidden>
+              /
+            </span>
             <CopyPageLink proposalId={p.proposalId} />
           </nav>
           {p.hub && (
