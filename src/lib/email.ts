@@ -116,7 +116,7 @@ export async function sendProposalNotificationEmail(
 
         <p style="color: #666; font-size: 12px;">
           You're receiving this because push notification delivery failed.
-          This is a fallback notification from ICP Proposal Reviewer.
+          This is a fallback notification from Reviewer.
         </p>
       `,
     });

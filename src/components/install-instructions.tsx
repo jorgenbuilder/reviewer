@@ -59,7 +59,7 @@ export function InstallInstructions() {
     <div className="min-h-screen flex items-center justify-center p-4 bg-background">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl">ICP Proposal Reviewer</CardTitle>
+          <CardTitle className="text-2xl">Reviewer</CardTitle>
           <CardDescription>
             Install this app to get notified about new ICP governance proposals
           </CardDescription>
@@ -116,7 +116,7 @@ export function InstallInstructions() {
                   Look for the <strong>install icon</strong> in the address bar
                 </li>
                 <li>
-                  Or click the menu and select <strong>Install ICP Proposal Reviewer</strong>
+                  Or click the menu and select <strong>Install Reviewer</strong>
                 </li>
               </ol>
               <p className="text-xs text-muted-foreground">

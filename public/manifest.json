@@ -1,6 +1,6 @@
 {
-  "name": "ICP Proposal Reviewer",
-  "short_name": "Proposals",
+  "name": "Reviewer",
+  "short_name": "Reviewer",
   "description": "Get notified about new ICP governance proposals",
   "start_url": "/",
   "display": "standalone",

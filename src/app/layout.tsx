@@ -16,13 +16,13 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "ICP Proposal Reviewer",
+  title: "Reviewer",
   description: "Get notified about new ICP governance proposals",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Proposals",
+    title: "Reviewer",
   },
 };
 
