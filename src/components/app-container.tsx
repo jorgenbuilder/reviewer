@@ -5,6 +5,7 @@ import { isStandalone, isPushSupported, registerServiceWorker } from "@/lib/push
 import { InstallInstructions } from "./install-instructions";
 import { NotificationPrompt } from "./notification-prompt";
 import { ProposalListV2 } from "./proposal-list-v2";
+import { ProposalListDesktop } from "./proposal-list-desktop";
 
 type AppState = "loading" | "install" | "notifications" | "ready";
 
@@ -65,5 +66,16 @@ export function AppContainer() {
     return <NotificationPrompt onComplete={() => setState("ready")} />;
   }
 
-  return <ProposalListV2 />;
+  // Mobile keeps the existing list untouched; wide viewports get the desktop
+  // table. Both read the shared ["proposals"] query, so this is one fetch.
+  return (
+    <>
+      <div className="lg:hidden">
+        <ProposalListV2 />
+      </div>
+      <div className="hidden lg:block">
+        <ProposalListDesktop />
+      </div>
+    </>
+  );
 }
