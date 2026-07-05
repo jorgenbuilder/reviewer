@@ -21,6 +21,7 @@ import {
 import { cn } from "@/lib/utils";
 import type { ParsedProposal } from "@/lib/design-stub";
 import { HubStatus } from "@/components/hub-status";
+import { ReviewCosts } from "@/components/review-costs";
 
 // Icon per review-activity kind.
 const ACTIVITY_ICON: Record<
@@ -630,6 +631,11 @@ export function ProposalDetailV2({ proposal: p }: ProposalDetailV2Props) {
           </CollapsibleRow>
         );
       })}
+
+      {/* Realtime review cost (AI commentary + Claude Code cloud sessions). */}
+      <div className="px-3 py-3">
+        <ReviewCosts proposalId={p.proposalId} />
+      </div>
 
       {/* 3. AI commentary — tight + collapsible, same content as the live
           widget (overall summary, why-now, sources, confidence, incomplete

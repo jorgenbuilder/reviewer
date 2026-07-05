@@ -200,6 +200,10 @@ export type Database = {
           cost_usd: number | null
           duration_ms: number | null
           turns: number | null
+          input_tokens: number | null
+          output_tokens: number | null
+          cache_read_tokens: number | null
+          cache_creation_tokens: number | null
           commentary_data: Json
           created_at: string
         }
@@ -213,6 +217,10 @@ export type Database = {
           cost_usd?: number | null
           duration_ms?: number | null
           turns?: number | null
+          input_tokens?: number | null
+          output_tokens?: number | null
+          cache_read_tokens?: number | null
+          cache_creation_tokens?: number | null
           commentary_data: Json
           created_at?: string
         }
@@ -226,6 +234,10 @@ export type Database = {
           cost_usd?: number | null
           duration_ms?: number | null
           turns?: number | null
+          input_tokens?: number | null
+          output_tokens?: number | null
+          cache_read_tokens?: number | null
+          cache_creation_tokens?: number | null
           commentary_data?: Json
           created_at?: string
         }
@@ -282,6 +294,48 @@ export type Database = {
           status?: string
           error_message?: string | null
           created_at?: string
+        }
+        Relationships: []
+      }
+      review_session_costs: {
+        Row: {
+          proposal_id: number
+          session_id: string
+          source: string
+          input_tokens: number
+          output_tokens: number
+          cache_read_tokens: number
+          cache_creation_tokens: number
+          cost_usd: number
+          model: string | null
+          first_seen_at: string
+          updated_at: string
+        }
+        Insert: {
+          proposal_id: number
+          session_id: string
+          source?: string
+          input_tokens?: number
+          output_tokens?: number
+          cache_read_tokens?: number
+          cache_creation_tokens?: number
+          cost_usd?: number
+          model?: string | null
+          first_seen_at?: string
+          updated_at?: string
+        }
+        Update: {
+          proposal_id?: number
+          session_id?: string
+          source?: string
+          input_tokens?: number
+          output_tokens?: number
+          cache_read_tokens?: number
+          cache_creation_tokens?: number
+          cost_usd?: number
+          model?: string | null
+          first_seen_at?: string
+          updated_at?: string
         }
         Relationships: []
       }

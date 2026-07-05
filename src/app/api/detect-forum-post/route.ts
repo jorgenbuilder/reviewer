@@ -37,11 +37,12 @@ export async function POST(request: NextRequest) {
     (cronSecret && authHeader === `Bearer ${cronSecret}`);
   if (!authorized) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  let proposalId: string, attempt: number;
+  let proposalId: string, attempt: number, oneShot: boolean;
   try {
     const parsed = JSON.parse(body || "{}");
     proposalId = String(parsed.proposalId);
     attempt = Number(parsed.attempt ?? 0);
+    oneShot = Boolean(parsed.oneShot);
     if (!proposalId || proposalId === "undefined") throw new Error("missing proposalId");
   } catch (e) {
     return NextResponse.json({ error: "bad body: " + (e as Error).message }, { status: 400 });
@@ -68,15 +69,39 @@ export async function POST(request: NextRequest) {
       await enqueueReviewCheck(proposalId).catch((e) => log("review enqueue warn:", (e as Error).message));
       return NextResponse.json({ status: "found", url: thread.url });
     }
+    // One-shot (backstop-originated): make no further attempt; the reconcile-detection
+    // sweep owns the retry cadence, so we must not start a self-rescheduling chain here.
+    if (oneShot) {
+      log("not found (one-shot); not rescheduling");
+      return NextResponse.json({ status: "not-found-oneshot" });
+    }
     // Adaptive cadence: once verification is green, poll tight (only the post is missing).
     const verified = (await getVerificationStatusForProposals([proposalId]).catch(() => null))?.get(proposalId)?.status === "verified";
     const more = await scheduleDetection(proposalId, attempt + 1, verified);
-    log(more ? `not found; rescheduled attempt ${attempt + 1} (${verified ? "verified/tight" : "normal"})` : "not found; attempts exhausted");
-    return NextResponse.json({ status: more ? "rescheduled" : "exhausted", verified });
+    if (!more) {
+      // Gave up after MAX_DETECT_ATTEMPTS without finding a thread. Surface it: log + push,
+      // so a genuinely-stuck proposal is visible instead of failing silently. The
+      // reconcile-detection backstop can still re-arm it later.
+      log("not found; attempts exhausted");
+      await recordEvent(proposalId, "detection_exhausted", {
+        once: true,
+        detail: `no canonical thread after ${attempt + 1} attempts`,
+        push: { title: "Canonical detection gave up", body: `#${proposalId}: no forum thread found after ${attempt + 1} attempts` },
+      });
+      return NextResponse.json({ status: "exhausted", verified });
+    }
+    log(`not found; rescheduled attempt ${attempt + 1} (${verified ? "verified/tight" : "normal"})`);
+    return NextResponse.json({ status: "rescheduled", verified });
   } catch (err) {
     if (err instanceof ForumAuthError) {
       // Dead/invalid key: alert and stop — do NOT reschedule (would just fail again).
+      // The reconcile-detection backstop re-arms detection once the key is restored.
       log("FORUM AUTH ERROR:", err.message);
+      await recordEvent(proposalId, "detection_paused", {
+        once: true,
+        detail: err.message,
+        push: { title: "Forum key rejected — detection paused", body: `#${proposalId}: ${err.message}` },
+      });
       await sendForumCredentialAlertEmail(`${err.message} (proposal ${proposalId}, attempt ${attempt})`);
       return NextResponse.json({ status: "auth-error" });
     }

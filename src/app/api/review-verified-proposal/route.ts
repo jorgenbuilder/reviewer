@@ -13,7 +13,7 @@ import { scheduleDetection } from "@/lib/forum-detect";
 import { recordEvent } from "@/lib/events";
 import {
   topicIdFromUrl,
-  hasPostByUser,
+  hasReviewNoteForProposal,
   postReply,
   FORUM_POST_USERNAME,
   ForumAuthError,
@@ -81,10 +81,11 @@ export async function POST(request: NextRequest) {
     const topicId = topicIdFromUrl(canonicalForumUrl);
     if (!topicId) { log("bad canonical url", canonicalForumUrl); return NextResponse.json({ status: "bad-canonical-url" }); }
 
-    // Gate 2: idempotency FIRST — if the posting user already replied in this topic (e.g. a
-    // manual review), mark posted and stop. Cheaply resolves the backlog without auditing.
-    if (await hasPostByUser(topicId, FORUM_POST_USERNAME)) {
-      log("user already posted in topic; marking posted");
+    // Gate 2: idempotency FIRST — if the posting user already posted a note for THIS proposal
+    // in the topic (e.g. a manual review), mark posted and stop. Per-proposal, not per-topic,
+    // so shared "NNS Updates" batch threads still get one note per proposal.
+    if (await hasReviewNoteForProposal(topicId, FORUM_POST_USERNAME, proposalId)) {
+      log("user already posted a note for this proposal; marking posted");
       await markReviewPosted(proposalId, canonicalForumUrl);
       return NextResponse.json({ status: "already-posted" });
     }

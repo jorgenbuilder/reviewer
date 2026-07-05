@@ -55,6 +55,20 @@ export async function scheduleDetection(proposalId: string, attempt: number, ver
   return true;
 }
 
+/**
+ * Fire a single detection attempt that does NOT self-reschedule (oneShot). Used by the
+ * reconcile-detection backstop so each sweep tick makes exactly one attempt per stalled
+ * proposal — the sweep is the durable retry cadence, so no self-rescheduling chain is
+ * needed and overlapping chains can never stack up.
+ */
+export async function enqueueDetectionOnce(proposalId: string, delaySeconds = 0): Promise<void> {
+  await client().publishJSON({
+    url: `${appUrl()}/api/detect-forum-post`,
+    body: { proposalId, attempt: 0, oneShot: true },
+    delay: delaySeconds,
+  });
+}
+
 // Enqueue the verification-note review check for a proposal (idempotent; the checker
 // re-validates all gates and no-ops if not ready). Used opportunistically when a canonical
 // thread lands, and by the scheduled reconciler.

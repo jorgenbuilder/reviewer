@@ -6,6 +6,7 @@ import type {
 } from './supabase/types'
 import type { CommentaryData, CommentaryWithMetadata } from '@/types/commentary'
 import type { Json } from './supabase/types'
+import type { SessionCostDelta } from './otel'
 
 // Re-export types for backwards compatibility
 export type PushSubscriptionRecord = PushSubscription
@@ -298,6 +299,51 @@ export async function getProposalsAwaitingReview(limit = 25): Promise<ReviewCand
   for (const p of pending || []) {
     const url = canonicalByProposal.get(String(p.proposal_id))
     if (url) out.push({ proposalId: String(p.proposal_id), title: p.title, canonicalForumUrl: url })
+    if (out.length >= limit) break
+  }
+  return out
+}
+
+export interface StalledDetection {
+  proposalId: string;
+  title: string | null;
+  ageMinutes: number;
+}
+
+// In-window proposals that still have no canonical thread and haven't been posted, whose
+// detection looks stalled — i.e. they were first seen at least `staleMinutes` ago, so a
+// healthy detection loop would already have found the thread. Drives the self-healing
+// reconcile-detection sweep. Ordered oldest-first so the most-stuck get attention first.
+export async function getStalledDetections(staleMinutes: number, limit = 25): Promise<StalledDetection[]> {
+  const now = Date.now();
+  const cutoff = new Date(now - staleMinutes * 60_000).toISOString();
+  const { data: pending, error } = await supabase
+    .from('proposals_seen')
+    .select('proposal_id, title, seen_at')
+    .is('review_post_state', null)
+    .gte('proposal_timestamp', REVIEW_MIN_PROPOSAL_DATE)
+    .lte('seen_at', cutoff)
+    .order('seen_at', { ascending: true })
+    .limit(200)
+
+  if (error) throw error
+  const ids = (pending || []).map(p => String(p.proposal_id))
+  if (ids.length === 0) return []
+
+  const { data: threads, error: tErr } = await supabase
+    .from('proposal_forum_threads')
+    .select('proposal_id')
+    .eq('is_canonical', true)
+    .in('proposal_id', ids)
+  if (tErr) throw tErr
+  const canonical = new Set((threads || []).map(t => String(t.proposal_id)))
+
+  const out: StalledDetection[] = []
+  for (const p of pending || []) {
+    const id = String(p.proposal_id)
+    if (canonical.has(id)) continue
+    const ageMinutes = Math.floor((now - new Date(p.seen_at).getTime()) / 60_000)
+    out.push({ proposalId: id, title: p.title, ageMinutes })
     if (out.length >= limit) break
   }
   return out
@@ -700,4 +746,107 @@ export async function logForumSearch(
     })
 
   if (error) throw error
+}
+
+// --- Review cost tracking (AI commentary + Claude Code cloud sessions) ---
+
+export interface SessionCostRow {
+  sessionId: string
+  source: string
+  inputTokens: number
+  outputTokens: number
+  cacheReadTokens: number
+  cacheCreationTokens: number
+  costUsd: number
+  model: string | null
+  updatedAt: string
+}
+
+export interface ReviewCosts {
+  commentary: {
+    costUsd: number
+    inputTokens: number
+    outputTokens: number
+    cacheReadTokens: number
+    cacheCreationTokens: number
+    runs: number
+  }
+  sessions: SessionCostRow[]
+  totals: { costUsd: number; tokens: number }
+}
+
+// Upsert cumulative per-session cost totals from an OTLP export. Claude Code emits CUMULATIVE
+// counters, so the latest export is authoritative — replace token/cost on conflict (never add).
+export async function upsertSessionCosts(rows: SessionCostDelta[]): Promise<void> {
+  if (rows.length === 0) return
+  const now = new Date().toISOString()
+  const payload = rows.map((r) => ({
+    proposal_id: parseInt(r.proposalId, 10),
+    session_id: r.sessionId,
+    source: r.source,
+    input_tokens: Math.round(r.inputTokens),
+    output_tokens: Math.round(r.outputTokens),
+    cache_read_tokens: Math.round(r.cacheReadTokens),
+    cache_creation_tokens: Math.round(r.cacheCreationTokens),
+    cost_usd: r.costUsd,
+    model: r.model ?? null,
+    updated_at: now,
+  }))
+  const { error } = await supabase
+    .from('review_session_costs')
+    .upsert(payload, { onConflict: 'proposal_id,session_id,source' })
+  if (error) throw error
+}
+
+// Aggregate all costs for a proposal: AI commentary runs (summed) + per cloud-review session.
+export async function getReviewCosts(proposalId: string): Promise<ReviewCosts> {
+  const pid = parseInt(proposalId, 10)
+  const [commRes, sessRes] = await Promise.all([
+    supabase
+      .from('proposal_commentaries')
+      .select('cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens')
+      .eq('proposal_id', pid),
+    supabase
+      .from('review_session_costs')
+      .select('session_id, source, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, cost_usd, model, updated_at')
+      .eq('proposal_id', pid)
+      .order('updated_at', { ascending: false }),
+  ])
+  if (commRes.error) throw commRes.error
+  if (sessRes.error) throw sessRes.error
+
+  const commentary = (commRes.data || []).reduce(
+    (a, r) => ({
+      costUsd: a.costUsd + Number(r.cost_usd || 0),
+      inputTokens: a.inputTokens + Number(r.input_tokens || 0),
+      outputTokens: a.outputTokens + Number(r.output_tokens || 0),
+      cacheReadTokens: a.cacheReadTokens + Number(r.cache_read_tokens || 0),
+      cacheCreationTokens: a.cacheCreationTokens + Number(r.cache_creation_tokens || 0),
+      runs: a.runs + 1,
+    }),
+    { costUsd: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0, runs: 0 }
+  )
+
+  const sessions: SessionCostRow[] = (sessRes.data || []).map((r) => ({
+    sessionId: r.session_id,
+    source: r.source,
+    inputTokens: Number(r.input_tokens),
+    outputTokens: Number(r.output_tokens),
+    cacheReadTokens: Number(r.cache_read_tokens),
+    cacheCreationTokens: Number(r.cache_creation_tokens),
+    costUsd: Number(r.cost_usd),
+    model: r.model,
+    updatedAt: r.updated_at,
+  }))
+
+  const tok = (x: { inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheCreationTokens: number }) =>
+    x.inputTokens + x.outputTokens + x.cacheReadTokens + x.cacheCreationTokens
+  const sessionsCost = sessions.reduce((a, s) => a + s.costUsd, 0)
+  const sessionsTokens = sessions.reduce((a, s) => a + tok(s), 0)
+
+  return {
+    commentary,
+    sessions,
+    totals: { costUsd: commentary.costUsd + sessionsCost, tokens: tok(commentary) + sessionsTokens },
+  }
 }

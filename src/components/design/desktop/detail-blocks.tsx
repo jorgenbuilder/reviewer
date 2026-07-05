@@ -7,6 +7,7 @@
 import { useState } from "react";
 import type { ParsedProposal } from "@/lib/design-stub";
 import { HubStatus } from "@/components/hub-status";
+import { ReviewCostMeta } from "@/components/review-costs";
 import { cn } from "@/lib/utils";
 import {
   ACTIVITY_ICON,
@@ -355,6 +356,11 @@ export function MetaSidebar({
           </nav>
         </MetaItem>
       )}
+
+      {/* Realtime review cost (AI commentary + Claude Code cloud sessions) */}
+      <MetaItem label="Review cost">
+        <ReviewCostMeta proposalId={p.proposalId} />
+      </MetaItem>
     </div>
   );
 }

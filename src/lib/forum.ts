@@ -52,7 +52,35 @@ async function search(proposalId: string): Promise<SearchTopic[]> {
   return data.topics ?? [];
 }
 
-// A thread is the canonical discussion iff its first post mentions the proposal ID.
+// Newest topics in the NNS-proposal category, most-recent first. Used as the discovery
+// fallback: Discourse full-text search does NOT tokenize a proposal ID that appears only
+// inside a dashboard URL (e.g. the batched "NNS Updates YYYY-MM-DD" threads), so a search
+// by bare ID returns nothing for them. Listing the category and scanning first posts finds
+// them regardless of how the ID is formatted.
+async function listRecentCategoryTopics(limit: number): Promise<SearchTopic[]> {
+  const res = await forumGet(`/c/${NNS_PROPOSAL_CATEGORY_SLUG}/${NNS_PROPOSAL_CATEGORY_ID}.json?order=created`);
+  if (res.status === 401 || res.status === 403) {
+    throw new ForumAuthError(`forum category fetch rejected key: HTTP ${res.status}`);
+  }
+  if (!res.ok) throw new Error(`forum category fetch failed: HTTP ${res.status}`);
+  const data = await res.json();
+  const topics: SearchTopic[] = (data?.topic_list?.topics ?? []).map((t: { id: number; title: string; slug: string }) => ({
+    id: t.id,
+    title: t.title,
+    slug: t.slug,
+    category_id: NNS_PROPOSAL_CATEGORY_ID,
+  }));
+  return topics.slice(0, limit);
+}
+
+// True iff `text` references this exact proposal: either its dashboard URL, or the bare ID
+// not embedded in a longer number (so "142679" does not match "1426790" or a hash).
+function bodyReferencesProposal(text: string, proposalId: string): boolean {
+  if (text.includes(`/proposal/${proposalId}`)) return true;
+  return new RegExp(`(?<![0-9])${proposalId}(?![0-9])`).test(text);
+}
+
+// A thread is the canonical discussion iff its first post references the proposal.
 async function firstPostMentions(topic: SearchTopic, proposalId: string): Promise<boolean> {
   const res = await forumGet(`/t/${topic.slug}/${topic.id}.json`);
   if (res.status === 401 || res.status === 403) {
@@ -62,15 +90,12 @@ async function firstPostMentions(topic: SearchTopic, proposalId: string): Promis
   const data = await res.json();
   const firstPost = data.post_stream?.posts?.[0];
   const text = firstPost?.cooked || firstPost?.raw || "";
-  return text.includes(proposalId);
+  return bodyReferencesProposal(text, proposalId);
 }
 
-/**
- * Find the canonical NNS forum thread for a proposal, or null if not found yet.
- * Throws ForumAuthError if the key is rejected (so callers can stop + alert).
- */
-export async function findCanonicalThread(proposalId: string): Promise<CanonicalThread | null> {
-  const topics = await search(proposalId);
+// Return the first candidate topic (in the NNS-proposal category) whose first post
+// references the proposal, or null.
+async function firstMatchingTopic(topics: SearchTopic[], proposalId: string): Promise<CanonicalThread | null> {
   const nnsTopics = topics.filter((t) => t.category_id === NNS_PROPOSAL_CATEGORY_ID);
   for (const topic of nnsTopics) {
     if (await firstPostMentions(topic, proposalId)) {
@@ -78,6 +103,27 @@ export async function findCanonicalThread(proposalId: string): Promise<Canonical
     }
   }
   return null;
+}
+
+// How many recent category topics the fallback scans. Proposals are found within a day or
+// two of submission, so the newest couple dozen threads more than cover the window.
+const FALLBACK_SCAN_LIMIT = 25;
+
+/**
+ * Find the canonical NNS forum thread for a proposal, or null if not found yet.
+ * Throws ForumAuthError if the key is rejected (so callers can stop + alert).
+ *
+ * Two-stage discovery:
+ *   1. Full-text search by proposal ID — fast path for individual "Proposal NNNNN …"
+ *      threads, where the ID is plaintext in the title.
+ *   2. Fallback scan of the most recent category topics — catches the batched
+ *      "NNS Updates YYYY-MM-DD" threads, where the ID lives only inside a dashboard URL
+ *      and is therefore invisible to full-text search.
+ */
+export async function findCanonicalThread(proposalId: string): Promise<CanonicalThread | null> {
+  const viaSearch = await firstMatchingTopic(await search(proposalId), proposalId);
+  if (viaSearch) return viaSearch;
+  return await firstMatchingTopic(await listRecentCategoryTopics(FALLBACK_SCAN_LIMIT), proposalId);
 }
 
 // --- Posting (write scope) -----------------------------------------------------------
@@ -108,15 +154,22 @@ export function topicIdFromUrl(url: string): number | null {
 }
 
 // Idempotency guard: has the posting user already posted in this topic?
-export async function hasPostByUser(topicId: number, username: string): Promise<boolean> {
+// True iff `username` has already posted a note for THIS proposal in the topic. The match is
+// per-proposal (post body references the proposal), not merely per-topic: batched
+// "NNS Updates YYYY-MM-DD" threads carry one note per proposal, so a plain "user has any post
+// here" check would suppress every note after the first. Each verification note embeds its
+// proposal ID, so referencing that ID reliably distinguishes them.
+export async function hasReviewNoteForProposal(topicId: number, username: string, proposalId: string): Promise<boolean> {
   const res = await fetch(`${FORUM_BASE_URL}/t/${topicId}.json`, {
     headers: { "User-Api-Key": writeApiKey(), Accept: "application/json", "User-Agent": "pcm-portal/post" },
   });
   if (res.status === 401 || res.status === 403) throw new ForumAuthError(`topic read rejected write key: HTTP ${res.status}`);
   if (!res.ok) throw new Error(`topic fetch failed: HTTP ${res.status}`);
   const data = await res.json();
-  const posts: Array<{ username?: string }> = data.post_stream?.posts ?? [];
-  return posts.some((p) => p.username?.toLowerCase() === username.toLowerCase());
+  const posts: Array<{ username?: string; cooked?: string; raw?: string }> = data.post_stream?.posts ?? [];
+  return posts.some(
+    (p) => p.username?.toLowerCase() === username.toLowerCase() && bodyReferencesProposal(p.cooked || p.raw || "", proposalId)
+  );
 }
 
 export interface PostedReply { id: number; postNumber: number; url: string }
