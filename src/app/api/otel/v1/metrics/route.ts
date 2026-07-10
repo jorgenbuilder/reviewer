@@ -3,8 +3,8 @@
 // ms; we extract token/cost counters and upsert per-session totals for realtime display on the
 // proposal detail view. Auth: Bearer CRON_SECRET (via OTEL_EXPORTER_OTLP_HEADERS).
 import { NextRequest, NextResponse } from "next/server";
-import { parseClaudeCodeMetrics, type OtlpMetricsRequest } from "@/lib/otel";
-import { upsertSessionCosts } from "@/lib/db";
+import { parseClaudeCodeMetrics, type AttributedSessionCostDelta, type OtlpMetricsRequest } from "@/lib/otel";
+import { getSessionClaims, upsertSessionCosts } from "@/lib/db";
 
 export async function POST(request: NextRequest) {
   const authHeader = request.headers.get("authorization");
@@ -21,7 +21,17 @@ export async function POST(request: NextRequest) {
 
   try {
     const rows = parseClaudeCodeMetrics(payload);
-    await upsertSessionCosts(rows);
+    // Rows without a proposal.id resource attribute (the durable env doesn't bake one in) are
+    // attributed via the session→proposal claim the session registered (POST /api/claim-session).
+    // Unclaimed sessions are dropped — harmless, since counters are cumulative: once the session
+    // claims, its next export carries the full running totals.
+    const unattributed = rows.filter((r) => !r.proposalId);
+    if (unattributed.length > 0) {
+      const claims = await getSessionClaims([...new Set(unattributed.map((r) => r.sessionId))]);
+      for (const r of unattributed) r.proposalId = claims.get(r.sessionId) ?? null;
+    }
+    const attributed = rows.filter((r): r is AttributedSessionCostDelta => !!r.proposalId);
+    await upsertSessionCosts(attributed);
     // OTLP expects an ExportMetricsServiceResponse; empty object = full success.
     return NextResponse.json({ partialSuccess: {} });
   } catch (err) {

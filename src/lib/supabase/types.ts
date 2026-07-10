@@ -339,6 +339,24 @@ export type Database = {
         }
         Relationships: []
       }
+      review_session_claims: {
+        Row: {
+          session_id: string
+          proposal_id: number
+          claimed_at: string
+        }
+        Insert: {
+          session_id: string
+          proposal_id: number
+          claimed_at?: string
+        }
+        Update: {
+          session_id?: string
+          proposal_id?: number
+          claimed_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

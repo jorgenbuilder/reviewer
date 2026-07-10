@@ -6,7 +6,7 @@ import type {
 } from './supabase/types'
 import type { CommentaryData, CommentaryWithMetadata } from '@/types/commentary'
 import type { Json } from './supabase/types'
-import type { SessionCostDelta } from './otel'
+import type { AttributedSessionCostDelta } from './otel'
 
 // Re-export types for backwards compatibility
 export type PushSubscriptionRecord = PushSubscription
@@ -775,9 +775,33 @@ export interface ReviewCosts {
   totals: { costUsd: number; tokens: number }
 }
 
+// Session→proposal claim: registered by the cloud session at runtime (POST /api/claim-session)
+// so its OTLP exports can be attributed without baking proposal.id into the static env.
+// Re-claiming overwrites (last claim wins).
+export async function upsertSessionClaim(sessionId: string, proposalId: string): Promise<void> {
+  const { error } = await supabase
+    .from('review_session_claims')
+    .upsert(
+      { session_id: sessionId, proposal_id: parseInt(proposalId, 10), claimed_at: new Date().toISOString() },
+      { onConflict: 'session_id' }
+    )
+  if (error) throw error
+}
+
+// Resolve session ids to their claimed proposal ids (missing = never claimed).
+export async function getSessionClaims(sessionIds: string[]): Promise<Map<string, string>> {
+  if (sessionIds.length === 0) return new Map()
+  const { data, error } = await supabase
+    .from('review_session_claims')
+    .select('session_id, proposal_id')
+    .in('session_id', sessionIds)
+  if (error) throw error
+  return new Map((data || []).map((r) => [r.session_id as string, String(r.proposal_id)]))
+}
+
 // Upsert cumulative per-session cost totals from an OTLP export. Claude Code emits CUMULATIVE
 // counters, so the latest export is authoritative — replace token/cost on conflict (never add).
-export async function upsertSessionCosts(rows: SessionCostDelta[]): Promise<void> {
+export async function upsertSessionCosts(rows: AttributedSessionCostDelta[]): Promise<void> {
   if (rows.length === 0) return
   const now = new Date().toISOString()
   const payload = rows.map((r) => ({
