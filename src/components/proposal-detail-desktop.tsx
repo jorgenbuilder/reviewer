@@ -8,13 +8,13 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Home, Github } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ParsedProposal } from "@/lib/design-stub";
 import type { ProposalResponse } from "@/app/api/proposals/route";
 import { HubStatus } from "@/components/hub-status";
-import { fetchProposalsList, PROPOSALS_QUERY_KEY } from "@/lib/proposals-client";
+import { fetchProposalsList, PROPOSALS_QUERY_KEY, prefetchProposal } from "@/lib/proposals-client";
 import { VerifyDot, relativeTime } from "@/components/design/desktop/shared";
 import {
   CopyPageLink,
@@ -49,10 +49,12 @@ function useIsDesktop() {
 }
 
 function RailRow({ p, active }: { p: ProposalResponse; active: boolean }) {
+  const queryClient = useQueryClient();
   const unseen = !p.viewerSeenAt;
   return (
     <Link
       href={`/proposals/${p.id}`}
+      onMouseEnter={() => prefetchProposal(queryClient, p.id)}
       aria-current={active ? "page" : undefined}
       className={cn(
         "block border-b border-border px-3 py-2.5 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring",

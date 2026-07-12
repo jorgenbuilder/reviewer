@@ -7,13 +7,13 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { RotateCw, Check, ChevronUp, ChevronDown, ChevronsUpDown, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SettingsMenu } from "@/components/settings-menu";
 import { HubStatus } from "@/components/hub-status";
 import { VerifyDot, DiffStat, relativeTime } from "@/components/design/desktop/shared";
-import { fetchProposalsList, PROPOSALS_QUERY_KEY, orderTopics } from "@/lib/proposals-client";
+import { fetchProposalsList, PROPOSALS_QUERY_KEY, orderTopics, prefetchProposal } from "@/lib/proposals-client";
 import type { ProposalResponse } from "@/app/api/proposals/route";
 import type { VerificationStatus } from "@/lib/github";
 
@@ -131,6 +131,7 @@ function FilterChip({
 
 export function ProposalListDesktop() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const {
     data: proposals = [],
     isLoading,
@@ -269,7 +270,10 @@ export function ProposalListDesktop() {
                     key={p.id}
                     tabIndex={0}
                     onClick={() => open(p.id)}
-                    onMouseEnter={() => router.prefetch(`/proposals/${p.id}`)}
+                    onMouseEnter={() => {
+                      router.prefetch(`/proposals/${p.id}`);
+                      prefetchProposal(queryClient, p.id);
+                    }}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" || e.key === " ") {
                         e.preventDefault();
