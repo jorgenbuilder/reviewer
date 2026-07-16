@@ -552,6 +552,7 @@ export function ProposalDetailV2({ proposal: p }: ProposalDetailV2Props) {
           urgency={p.urgency.score}
           plannedVoteAt={p.urgency.plannedVoteAt}
           evidence={p.urgency.evidence}
+          voteStatus={p.onchain.vote.status}
         />
       )}
 

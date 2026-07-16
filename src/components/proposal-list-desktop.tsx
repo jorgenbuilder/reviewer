@@ -298,7 +298,7 @@ export function ProposalListDesktop() {
                     </td>
                     <td className="px-3 py-2.5">
                       <p className="line-clamp-1 break-words text-sm font-medium leading-snug text-foreground">
-                        <UrgencyChip urgency={p.urgency} plannedVoteAt={p.plannedVoteAt} className="mr-1.5 align-text-bottom" />
+                        <UrgencyChip urgency={p.urgency} plannedVoteAt={p.plannedVoteAt} proposalTimestamp={p.proposalTimestamp} className="mr-1.5 align-text-bottom" />
                         {p.title}
                       </p>
                       {p.commentaryTitle && (

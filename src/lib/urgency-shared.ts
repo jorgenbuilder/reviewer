@@ -42,6 +42,13 @@ export function isFutureVote(plannedVoteAt: string | null | undefined, now: Date
   return !!plannedVoteAt && new Date(plannedVoteAt).getTime() > now.getTime();
 }
 
+/** True iff `iso` is within `maxAgeMs` of now. False for null/unparseable. */
+export function isRecent(iso: string | null | undefined, maxAgeMs: number, now: Date = new Date()): boolean {
+  if (!iso) return false;
+  const t = new Date(iso).getTime();
+  return !isNaN(t) && now.getTime() - t <= maxAgeMs;
+}
+
 /** Very short vote-time label for UI chips: "vote in 14h", "vote Jul 21", "voted". */
 export function shortVoteLabel(plannedVoteAt: string, now: Date = new Date()): string {
   const t = new Date(plannedVoteAt);

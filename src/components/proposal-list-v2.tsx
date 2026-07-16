@@ -113,7 +113,7 @@ function ProposalRow({ p }: { p: Proposal }) {
             aria-label="Reviewed"
           />
         )}
-        <UrgencyChip urgency={p.urgency} plannedVoteAt={p.plannedVoteAt} />
+        <UrgencyChip urgency={p.urgency} plannedVoteAt={p.plannedVoteAt} proposalTimestamp={p.proposalTimestamp} />
         <span className="ml-auto flex items-center gap-2">
           {p.hub && <HubStatus hub={p.hub} />}
           <VerifyDot status={p.verificationStatus} />

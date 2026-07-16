@@ -143,6 +143,7 @@ function DetailContent({ p }: { p: ParsedProposal }) {
           urgency={p.urgency.score}
           plannedVoteAt={p.urgency.plannedVoteAt}
           evidence={p.urgency.evidence}
+          voteStatus={p.onchain.vote.status}
         />
       )}
 
