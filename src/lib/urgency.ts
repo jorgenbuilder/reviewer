@@ -63,8 +63,9 @@ You are given a proposal (title, summary, submission time) and sometimes posts f
    - The standard NNS voting deadline (proposals execute after the voting period regardless) is NOT a planned vote — do not infer one. If no voting plan is stated anywhere, output null.
 
 2. urgency — your probability (0 to 1) that this proposal is urgent, i.e. the reviewer should look at it sooner than the normal cadence. Calibration:
-   - 0.9-1.0: explicit urgency ("urgent", "hotfix", "critical fix", "security", "as soon as possible", "expedited"), an incident/outage being fixed, or a stated vote less than ~24h away.
-   - 0.6-0.85: a stated plan to vote within ~2 days of the statement, a fix for a live user-facing bug, or strong time pressure implied by the text (e.g. a dependency deadline, halted canister).
+   - 0.9-1.0: explicit urgency, an incident/outage being fixed, or a stated vote less than ~24h away. If the text literally labels the change urgent ("urgent", "why this is urgent", "hotfix", "critical fix", "security fix", "as soon as possible", "expedited"), output at least 0.9 — the author's own urgency label always wins.
+   - 0.75-0.85: strong time pressure stated in the text short of an explicit urgency label (e.g. a dependency deadline, a halted/stuck canister being unblocked).
+   - 0.5-0.65: a stated plan to vote within ~2 days of the statement, or a fix for a live user-facing bug whose author does NOT state urgency (bug fixes without an urgency label cap at 0.65).
    - 0.3-0.5: mild time sensitivity (vote planned ~3-5 days out, coordination with an external event). A routine batch voting announcement (e.g. a weekly "NNS Updates" thread stating DFINITY will vote a few days out) belongs here and contributes the SAME score to every proposal it covers — only urgency in the proposal's own change justifies going higher.
    - 0.0-0.2: routine upgrades, elections, config changes with no stated schedule or urgency.
 
