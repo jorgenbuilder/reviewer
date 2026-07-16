@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 // states are literal words ("done"/"miss"); a pending review counts down to the
 // on-chain review deadline. Shared by the detail top bar and the list rows.
 export type HubStatusValue =
-  | { state: "done" }
+  | { state: "done"; recommendation?: "adopt" | "reject" }
   | { state: "miss" }
   | { state: "pending"; deadlineMs: number };
 
@@ -19,17 +19,24 @@ export function HubStatus({
   hub: HubStatusValue;
   className?: string;
 }) {
-  if (hub.state === "done")
+  if (hub.state === "done") {
+    // Show the submitted recommendation when the hub carries it; the word
+    // itself doubles as the done indicator.
     return (
       <span
+        title="Review submitted to the hub"
         className={cn(
-          "font-mono text-xs font-bold uppercase tracking-wide text-emerald-600 dark:text-emerald-400",
+          "font-mono text-xs font-bold uppercase tracking-wide",
+          hub.recommendation === "reject"
+            ? "text-destructive"
+            : "text-emerald-600 dark:text-emerald-400",
           className
         )}
       >
-        done
+        {hub.recommendation ?? "done"}
       </span>
     );
+  }
   if (hub.state === "miss")
     return (
       <span

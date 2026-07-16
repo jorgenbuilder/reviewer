@@ -52,11 +52,18 @@ const hubIdlFactory = () => {
   });
 };
 
+type HubRecommendation = { adopt: null } | { reject: null };
+
 interface HubActor {
   getReviewerTodos: (p: Principal) => Promise<{ proposalId: bigint; deadline: bigint }[]>;
-  getReviewerReviewHistory: (p: Principal) => Promise<{ proposalId: bigint }[]>;
+  getReviewerReviewHistory: (
+    p: Principal
+  ) => Promise<{ proposalId: bigint; recommendation: HubRecommendation }[]>;
   getReviewerMissedProposals: (p: Principal) => Promise<{ proposalId: bigint }[]>;
 }
+
+const recommendationOf = (r: HubRecommendation): "adopt" | "reject" =>
+  "adopt" in r ? "adopt" : "reject";
 
 let cachedActor: HubActor | null = null;
 async function hubActor(): Promise<HubActor> {
@@ -70,7 +77,7 @@ async function hubActor(): Promise<HubActor> {
 }
 
 export type HubStatus =
-  | { state: "done" }
+  | { state: "done"; recommendation?: "adopt" | "reject" }
   | { state: "miss" }
   | { state: "pending"; deadlineMs: number };
 
@@ -89,7 +96,8 @@ export async function getHubStatus(proposalId: string): Promise<HubStatus | null
       hub.getReviewerMissedProposals(reviewer),
       hub.getReviewerTodos(reviewer),
     ]);
-    if (history.some((r) => r.proposalId === pid)) return { state: "done" };
+    const review = history.find((r) => r.proposalId === pid);
+    if (review) return { state: "done", recommendation: recommendationOf(review.recommendation) };
     if (missed.some((p) => p.proposalId === pid)) return { state: "miss" };
     const todo = todos.find((p) => p.proposalId === pid);
     if (todo) return { state: "pending", deadlineMs: Number(todo.deadline / 1_000_000n) };
@@ -125,7 +133,11 @@ export async function getHubStatusMap(): Promise<Map<string, HubStatus>> {
       });
     }
     for (const p of missed) map.set(p.proposalId.toString(), { state: "miss" });
-    for (const r of history) map.set(r.proposalId.toString(), { state: "done" });
+    for (const r of history)
+      map.set(r.proposalId.toString(), {
+        state: "done",
+        recommendation: recommendationOf(r.recommendation),
+      });
   } catch {
     // empty map — list simply renders without hub status
   }
