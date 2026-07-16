@@ -63,6 +63,16 @@ export interface ParsedProposal {
   };
   diff?: { added: number; removed: number };
   /**
+   * Extracted urgency signals (lib/urgency.ts): P(urgent) score, the stated
+   * "DFINITY plans to vote at ..." time, and the verbatim quote the extraction
+   * rests on. Absent when extraction hasn't run for this proposal.
+   */
+  urgency?: {
+    score: number | null;
+    plannedVoteAt: string | null;
+    evidence: string | null;
+  };
+  /**
    * Review-hub status (NNS Technical Review Hub canister), shown in the top bar.
    * "done"/"miss" are terminal; "pending" carries the deadline (epoch ms) so the
    * UI counts down to it. Absent when the hub doesn't track the proposal.

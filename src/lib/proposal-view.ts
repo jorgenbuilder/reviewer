@@ -19,6 +19,7 @@ import {
   getProposalDiffStats,
   getProposalEvents,
   getReviewPostState,
+  getUrgency,
   type ProposalEvent,
 } from "./db";
 
@@ -71,7 +72,7 @@ export async function buildParsedProposal(id: string): Promise<ParsedProposal | 
   if (!proposal) return null;
 
   const parse = parseProposalSummary(proposal.summary);
-  const [vstatusMap, vote, commentary, diff, reviewState, events, hub, canisterLabel] =
+  const [vstatusMap, vote, commentary, diff, reviewState, events, hub, canisterLabel, urgencyRecord] =
     await Promise.all([
       getVerificationStatusForProposals([id]),
       getProposalVote(id),
@@ -81,6 +82,7 @@ export async function buildParsedProposal(id: string): Promise<ParsedProposal | 
       getProposalEvents({ proposalId: id, limit: 50 }),
       getHubStatus(id),
       getCanisterLabel(proposal.canisterId),
+      getUrgency(id).catch(() => null),
     ]);
 
   // Per-commit stats + AI review summaries.
@@ -143,6 +145,13 @@ export async function buildParsedProposal(id: string): Promise<ParsedProposal | 
     },
     diff: diff && (diff.linesAdded != null || diff.linesRemoved != null)
       ? { added: diff.linesAdded ?? 0, removed: diff.linesRemoved ?? 0 }
+      : undefined,
+    urgency: urgencyRecord && urgencyRecord.urgencyExtractedAt
+      ? {
+          score: urgencyRecord.urgency,
+          plannedVoteAt: urgencyRecord.plannedVoteAt,
+          evidence: urgencyRecord.urgencyEvidence,
+        }
       : undefined,
     hub: hub ?? undefined,
     reviewPostUrl: reviewPostedEvent?.detail ?? null,

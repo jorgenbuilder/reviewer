@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils";
 import type { ParsedProposal } from "@/lib/design-stub";
 import { HubStatus } from "@/components/hub-status";
 import { ReviewCosts } from "@/components/review-costs";
+import { UrgencyBanner } from "@/components/urgency-badge";
 
 // Icon per review-activity kind.
 const ACTIVITY_ICON: Record<
@@ -543,6 +544,16 @@ export function ProposalDetailV2({ proposal: p }: ProposalDetailV2Props) {
           </div>
         </div>
       </header>
+
+      {/* 1a. Urgency strip — only when the proposal is urgent or has a stated
+          DFINITY vote coming up. */}
+      {p.urgency && (
+        <UrgencyBanner
+          urgency={p.urgency.score}
+          plannedVoteAt={p.urgency.plannedVoteAt}
+          evidence={p.urgency.evidence}
+        />
+      )}
 
       {/* 1b. On-chain proposal — what was actually submitted to governance.
           Collapsible; the heading is replaced by a caret + action title, with

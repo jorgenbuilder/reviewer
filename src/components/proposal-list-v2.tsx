@@ -7,6 +7,7 @@ import { RotateCw, ChevronRight, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SettingsMenu } from "@/components/settings-menu";
 import { HubStatus, type HubStatusValue } from "@/components/hub-status";
+import { UrgencyChip } from "@/components/urgency-badge";
 import type { VerificationStatus } from "@/lib/github";
 
 interface Proposal {
@@ -22,6 +23,8 @@ interface Proposal {
   linesAdded: number | null;
   linesRemoved: number | null;
   hub: HubStatusValue | null;
+  urgency: number | null;
+  plannedVoteAt: string | null;
 }
 
 async function fetchProposals(): Promise<Proposal[]> {
@@ -110,6 +113,7 @@ function ProposalRow({ p }: { p: Proposal }) {
             aria-label="Reviewed"
           />
         )}
+        <UrgencyChip urgency={p.urgency} plannedVoteAt={p.plannedVoteAt} />
         <span className="ml-auto flex items-center gap-2">
           {p.hub && <HubStatus hub={p.hub} />}
           <VerifyDot status={p.verificationStatus} />

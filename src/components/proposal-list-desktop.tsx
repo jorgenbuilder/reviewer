@@ -12,6 +12,7 @@ import { RotateCw, Check, ChevronUp, ChevronDown, ChevronsUpDown, ChevronRight }
 import { cn } from "@/lib/utils";
 import { SettingsMenu } from "@/components/settings-menu";
 import { HubStatus } from "@/components/hub-status";
+import { UrgencyChip } from "@/components/urgency-badge";
 import { VerifyDot, DiffStat, relativeTime } from "@/components/design/desktop/shared";
 import { fetchProposalsList, PROPOSALS_QUERY_KEY, orderTopics, prefetchProposal } from "@/lib/proposals-client";
 import type { ProposalResponse } from "@/app/api/proposals/route";
@@ -296,7 +297,10 @@ export function ProposalListDesktop() {
                       </span>
                     </td>
                     <td className="px-3 py-2.5">
-                      <p className="line-clamp-1 break-words text-sm font-medium leading-snug text-foreground">{p.title}</p>
+                      <p className="line-clamp-1 break-words text-sm font-medium leading-snug text-foreground">
+                        <UrgencyChip urgency={p.urgency} plannedVoteAt={p.plannedVoteAt} className="mr-1.5 align-text-bottom" />
+                        {p.title}
+                      </p>
                       {p.commentaryTitle && (
                         <p className="mt-0.5 line-clamp-1 break-words text-xs italic text-muted-foreground/80">
                           {p.commentaryTitle}

@@ -22,6 +22,10 @@ export interface ProposalResponse {
   linesAdded: number | null;
   linesRemoved: number | null;
   hub: HubStatus | null;
+  /** Extracted P(urgent) in [0,1]; null = not extracted. See lib/urgency.ts. */
+  urgency: number | null;
+  /** Extracted "DFINITY plans to vote at ..." timestamp (ISO), if stated. */
+  plannedVoteAt: string | null;
 }
 
 export async function GET(request: NextRequest) {
@@ -83,6 +87,8 @@ export async function GET(request: NextRequest) {
           linesAdded: p.lines_added ?? null,
           linesRemoved: p.lines_removed ?? null,
           hub: hubMap.get(p.proposal_id) ?? null,
+          urgency: p.urgency ?? null,
+          plannedVoteAt: p.planned_vote_at ?? null,
         };
       }),
     });
