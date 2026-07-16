@@ -14,7 +14,6 @@ import { cn } from "@/lib/utils";
 import type { ParsedProposal } from "@/lib/design-stub";
 import type { ProposalResponse } from "@/app/api/proposals/route";
 import { HubStatus } from "@/components/hub-status";
-import { UrgencyBanner } from "@/components/urgency-badge";
 import { fetchProposalsList, PROPOSALS_QUERY_KEY, prefetchProposal } from "@/lib/proposals-client";
 import { VerifyDot, relativeTime } from "@/components/design/desktop/shared";
 import {
@@ -138,15 +137,6 @@ function DetailContent({ p }: { p: ParsedProposal }) {
 
   return (
     <>
-      {p.urgency && (
-        <UrgencyBanner
-          urgency={p.urgency.score}
-          plannedVoteAt={p.urgency.plannedVoteAt}
-          evidence={p.urgency.evidence}
-          voteStatus={p.onchain.vote.status}
-        />
-      )}
-
       <section id="onchain" className="border-b border-border scroll-mt-2">
         <OnchainBlock p={p} />
       </section>

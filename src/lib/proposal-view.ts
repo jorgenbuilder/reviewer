@@ -151,6 +151,13 @@ export async function buildParsedProposal(id: string): Promise<ParsedProposal | 
           score: urgencyRecord.urgency,
           plannedVoteAt: urgencyRecord.plannedVoteAt,
           evidence: urgencyRecord.urgencyEvidence,
+          submittedAt: reviewState.proposalTimestamp,
+          // getProposal maps get_proposal_info's executed_timestamp_seconds here;
+          // 0 means not executed yet.
+          executedAt:
+            proposal.proposalTimestampSeconds > 0n
+              ? new Date(Number(proposal.proposalTimestampSeconds) * 1000).toISOString()
+              : null,
         }
       : undefined,
     hub: hub ?? undefined,

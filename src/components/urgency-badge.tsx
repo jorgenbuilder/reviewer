@@ -6,7 +6,7 @@
 // on its own once the vote passes, and an "urgent" flag stops shouting once
 // the proposal's vote has closed.
 
-import { AlertTriangle, Clock, Gauge } from "lucide-react";
+import { AlertTriangle, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   startlingLevel,
@@ -14,7 +14,9 @@ import {
   describePlannedVote,
   isFutureVote,
   isRecent,
-  URGENT_THRESHOLD,
+  formatVoteTimeUTC,
+  formatDuration,
+  msUntil,
 } from "@/lib/urgency-shared";
 
 export interface UrgencyInfo {
@@ -86,54 +88,55 @@ export function UrgencyChip({
 }
 
 /**
- * Urgency row for the proposal detail page — always visible when extraction
- * data exists, so the signal is discoverable even on quiet proposals. Loud
- * (red/amber) only while actionable: an urgent flag with the vote still open,
- * or an upcoming stated vote. Everything else renders as a muted fact row.
+ * Minimal urgency block for the detail page's meta panel, styled to match the
+ * sidebar's status labels: a color-coded level word (urgent / vote soon /
+ * normal), then one fact line — countdown to the stated DFINITY vote while the
+ * proposal is open, or proposal→execution duration once it's done. Evidence
+ * lives in the tooltip.
  */
-export function UrgencyBanner({
+export function UrgencyMeta({
   urgency,
   plannedVoteAt,
   evidence,
   voteStatus,
-}: UrgencyInfo & { voteStatus?: "open" | "adopt" | "reject" }) {
+  submittedAt,
+  executedAt,
+}: UrgencyInfo & {
+  voteStatus?: "open" | "adopt" | "reject";
+  submittedAt?: string | null;
+  executedAt?: string | null;
+}) {
   const voteOpen = voteStatus == null || voteStatus === "open";
   const level = voteOpen ? startlingLevel(urgency, plannedVoteAt) : null;
-  const futureVote = isFutureVote(plannedVoteAt);
-  if (urgency == null && !plannedVoteAt) return null;
-
-  const loud = level !== null;
-  const tone =
+  const m =
     level === "urgent"
-      ? "border-destructive/60 bg-destructive/10 text-destructive"
+      ? { text: "urgent", cls: "text-destructive" }
       : level === "vote-soon"
-        ? "border-amber-500/60 bg-amber-500/10 text-amber-700 dark:text-amber-400"
-        : "border-border bg-muted/40 text-muted-foreground";
-  const Icon = level === "urgent" ? AlertTriangle : level === "vote-soon" || futureVote ? Clock : Gauge;
+        ? { text: "vote soon", cls: "text-amber-500" }
+        : { text: "normal", cls: "text-muted-foreground" };
 
-  const wasUrgent = !voteOpen && urgency != null && urgency >= URGENT_THRESHOLD;
-  const label =
-    level === "urgent"
-      ? "Urgent"
-      : level === "vote-soon" || futureVote
-        ? "Vote scheduled"
-        : wasUrgent
-          ? "Was urgent"
-          : "Urgency";
+  // One fact line: executed proposals show how long submission → execution
+  // took; open ones count down to the stated DFINITY vote.
+  let fact: string | null = null;
+  if (executedAt && submittedAt) {
+    fact = `executed ${formatDuration(new Date(executedAt).getTime() - new Date(submittedAt).getTime())} after proposal`;
+  } else if (plannedVoteAt) {
+    const ms = msUntil(plannedVoteAt);
+    fact =
+      ms > 0
+        ? `DFINITY votes in ${formatDuration(ms)} · ${formatVoteTimeUTC(plannedVoteAt)}`
+        : `DFINITY vote was ${formatVoteTimeUTC(plannedVoteAt)}`;
+  }
 
   return (
-    <div className={cn("flex items-start gap-2 border-b px-3 py-2", tone)} role={loud ? "alert" : undefined}>
-      <Icon className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-      <div className="min-w-0 font-mono text-xs leading-relaxed">
-        <span className="font-bold uppercase tracking-wide">{label}</span>
-        {urgency != null && <span className="opacity-70"> P={urgency.toFixed(2)}</span>}
-        {plannedVoteAt && <span> — {describePlannedVote(plannedVoteAt)}</span>}
-        {evidence && (
-          <span className="block truncate italic opacity-80" title={evidence}>
-            &ldquo;{evidence}&rdquo;
-          </span>
-        )}
-      </div>
+    <div>
+      <span
+        className={cn("font-mono text-xs font-bold uppercase tracking-wide", m.cls)}
+        title={evidence ? `P=${urgency?.toFixed(2)} — “${evidence}”` : urgency != null ? `P=${urgency.toFixed(2)}` : undefined}
+      >
+        {m.text}
+      </span>
+      {fact && <p className="mt-1 font-mono text-[0.65rem] text-muted-foreground">{fact}</p>}
     </div>
   );
 }

@@ -71,6 +71,10 @@ export interface ParsedProposal {
     score: number | null;
     plannedVoteAt: string | null;
     evidence: string | null;
+    /** When the proposal was submitted on-chain (ISO), if known. */
+    submittedAt: string | null;
+    /** When the proposal executed (ISO); null while the vote is open. */
+    executedAt: string | null;
   };
   /**
    * Review-hub status (NNS Technical Review Hub canister), shown in the top bar.

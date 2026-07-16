@@ -22,7 +22,7 @@ import { cn } from "@/lib/utils";
 import type { ParsedProposal } from "@/lib/design-stub";
 import { HubStatus } from "@/components/hub-status";
 import { ReviewCosts } from "@/components/review-costs";
-import { UrgencyBanner } from "@/components/urgency-badge";
+import { UrgencyMeta } from "@/components/urgency-badge";
 
 // Icon per review-activity kind.
 const ACTIVITY_ICON: Record<
@@ -545,17 +545,6 @@ export function ProposalDetailV2({ proposal: p }: ProposalDetailV2Props) {
         </div>
       </header>
 
-      {/* 1a. Urgency strip — only when the proposal is urgent or has a stated
-          DFINITY vote coming up. */}
-      {p.urgency && (
-        <UrgencyBanner
-          urgency={p.urgency.score}
-          plannedVoteAt={p.urgency.plannedVoteAt}
-          evidence={p.urgency.evidence}
-          voteStatus={p.onchain.vote.status}
-        />
-      )}
-
       {/* 1b. On-chain proposal — what was actually submitted to governance.
           Collapsible; the heading is replaced by a caret + action title, with
           an external link to the ICP dashboard. */}
@@ -588,9 +577,29 @@ export function ProposalDetailV2({ proposal: p }: ProposalDetailV2Props) {
         <div className="px-3 pb-4">
           <Markdown className="text-muted-foreground">{p.onchain.statement}</Markdown>
           <p className="mt-2 font-mono text-xs text-muted-foreground">{p.proposer}</p>
+          {p.canisterId && (
+            <p className="mt-1 break-all font-mono text-xs text-muted-foreground">
+              {p.canisterId}
+            </p>
+          )}
           <div className="mt-3">
             <VoteIndicator vote={p.onchain.vote} />
           </div>
+          {p.urgency && (
+            <div className="mt-3">
+              <p className="mb-1.5 font-mono text-[0.6rem] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                Urgency
+              </p>
+              <UrgencyMeta
+                urgency={p.urgency.score}
+                plannedVoteAt={p.urgency.plannedVoteAt}
+                evidence={p.urgency.evidence}
+                voteStatus={p.onchain.vote.status}
+                submittedAt={p.urgency.submittedAt}
+                executedAt={p.urgency.executedAt}
+              />
+            </div>
+          )}
         </div>
       </CollapsibleRow>
 

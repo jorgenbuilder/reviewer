@@ -8,6 +8,7 @@ import { useState } from "react";
 import type { ParsedProposal } from "@/lib/design-stub";
 import { HubStatus } from "@/components/hub-status";
 import { ReviewCostMeta } from "@/components/review-costs";
+import { UrgencyMeta } from "@/components/urgency-badge";
 import { cn } from "@/lib/utils";
 import {
   ACTIVITY_ICON,
@@ -290,6 +291,28 @@ export function MetaSidebar({
       <MetaItem label="Governance">
         <VoteIndicator vote={p.onchain.vote} />
       </MetaItem>
+
+      {/* Urgency (extracted) */}
+      {p.urgency && (
+        <MetaItem label="Urgency">
+          <UrgencyMeta
+            urgency={p.urgency.score}
+            plannedVoteAt={p.urgency.plannedVoteAt}
+            evidence={p.urgency.evidence}
+            voteStatus={p.onchain.vote.status}
+            submittedAt={p.urgency.submittedAt}
+            executedAt={p.urgency.executedAt}
+          />
+        </MetaItem>
+      )}
+
+      {/* Target canister */}
+      {p.canisterId && (
+        <MetaItem label="Canister">
+          <p className="text-sm text-foreground">{p.onchain.canisterName}</p>
+          <p className="mt-0.5 break-all font-mono text-[0.65rem] text-muted-foreground">{p.canisterId}</p>
+        </MetaItem>
+      )}
 
       {/* Hub deadline */}
       {p.hub && (

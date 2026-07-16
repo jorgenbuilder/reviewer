@@ -49,6 +49,26 @@ export function isRecent(iso: string | null | undefined, maxAgeMs: number, now: 
   return !isNaN(t) && now.getTime() - t <= maxAgeMs;
 }
 
+/** Plain UTC timestamp for display: "2026-07-13 12:00 UTC". */
+export function formatVoteTimeUTC(plannedVoteAt: string): string {
+  return new Date(plannedVoteAt).toISOString().slice(0, 16).replace("T", " ") + " UTC";
+}
+
+/** Compact duration: "3d 6h", "14h", "45m". */
+export function formatDuration(ms: number): string {
+  const m = Math.max(0, Math.round(ms / 60000));
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return m % 60 >= 30 ? `${h}h ${m % 60}m` : `${h}h`;
+  const d = Math.floor(h / 24);
+  return h % 24 > 0 ? `${d}d ${h % 24}h` : `${d}d`;
+}
+
+/** Milliseconds from now until `iso` (negative when past). */
+export function msUntil(iso: string, now: Date = new Date()): number {
+  return new Date(iso).getTime() - now.getTime();
+}
+
 /** Very short vote-time label for UI chips: "vote in 14h", "vote Jul 21", "voted". */
 export function shortVoteLabel(plannedVoteAt: string, now: Date = new Date()): string {
   const t = new Date(plannedVoteAt);
