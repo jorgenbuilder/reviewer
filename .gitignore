@@ -44,3 +44,4 @@ next-env.d.ts
 # Supabase temp files
 supabase/.temp/
 scripts/out/
+.comms.md

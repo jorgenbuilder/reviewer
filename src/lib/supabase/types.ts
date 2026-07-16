@@ -69,6 +69,60 @@ export type Database = {
         }
         Relationships: []
       }
+      review_drafts: {
+        Row: {
+          proposal_id: number
+          content: string
+          head_version: number
+          updated_at: string
+        }
+        Insert: {
+          proposal_id: number
+          content: string
+          head_version?: number
+          updated_at?: string
+        }
+        Update: {
+          proposal_id?: number
+          content?: string
+          head_version?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      review_draft_versions: {
+        Row: {
+          id: string
+          proposal_id: number
+          version: number
+          content: string
+          author: string
+          parent_version: number | null
+          merged: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          proposal_id: number
+          version: number
+          content: string
+          author: string
+          parent_version?: number | null
+          merged?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          proposal_id?: number
+          version?: number
+          content?: string
+          author?: string
+          parent_version?: number | null
+          merged?: boolean
+          created_at?: string
+        }
+        Relationships: []
+      }
       proposals_seen: {
         Row: {
           proposal_id: number

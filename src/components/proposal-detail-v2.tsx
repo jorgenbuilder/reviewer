@@ -17,6 +17,7 @@ import {
   Sparkles,
   MessageSquare,
   FileCheck,
+  Pencil,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ParsedProposal } from "@/lib/design-stub";
@@ -540,6 +541,14 @@ export function ProposalDetailV2({ proposal: p }: ProposalDetailV2Props) {
                 <Github className="h-5 w-5" strokeWidth={1.6} aria-hidden />
               </IconButton>
             )}
+            <Link
+              href={`/proposals/${p.proposalId}/draft`}
+              aria-label="Edit review draft"
+              title="Edit review draft"
+              className="flex w-9 shrink-0 items-center justify-center border-l border-border text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
+            >
+              <Pencil className="h-4 w-4" aria-hidden />
+            </Link>
             <ForumButton forum={p.forum} />
           </div>
         </div>
