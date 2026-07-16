@@ -173,6 +173,55 @@ export async function logNotification(
   if (dbError) throw dbError
 }
 
+// --- Urgency extraction (see lib/urgency.ts) ---
+
+export interface UrgencyRecord {
+  plannedVoteAt: string | null;
+  urgency: number | null;
+  urgencyEvidence: string | null;
+  urgencySource: string | null;
+  urgencyExtractedAt: string | null;
+}
+
+export async function saveUrgencyExtraction(
+  proposalId: string,
+  extraction: { plannedVoteAt: string | null; urgency: number; evidence: string | null },
+  source: 'proposal' | 'proposal+forum',
+  model: string
+): Promise<void> {
+  const { error } = await supabase
+    .from('proposals_seen')
+    .update({
+      planned_vote_at: extraction.plannedVoteAt,
+      urgency: extraction.urgency,
+      urgency_evidence: extraction.evidence?.slice(0, 1000) ?? null,
+      urgency_source: source,
+      urgency_model: model,
+      urgency_extracted_at: new Date().toISOString()
+    })
+    .eq('proposal_id', parseInt(proposalId, 10))
+
+  if (error) throw error
+}
+
+export async function getUrgency(proposalId: string): Promise<UrgencyRecord | null> {
+  const { data, error } = await supabase
+    .from('proposals_seen')
+    .select('planned_vote_at, urgency, urgency_evidence, urgency_source, urgency_extracted_at')
+    .eq('proposal_id', parseInt(proposalId, 10))
+    .maybeSingle()
+
+  if (error) throw error
+  if (!data) return null
+  return {
+    plannedVoteAt: data.planned_vote_at,
+    urgency: data.urgency,
+    urgencyEvidence: data.urgency_evidence,
+    urgencySource: data.urgency_source,
+    urgencyExtractedAt: data.urgency_extracted_at,
+  }
+}
+
 // Forum thread operations
 
 export async function addForumThread(
@@ -391,8 +440,8 @@ export async function markReviewFlagged(proposalId: string, reason: string): Pro
 }
 
 // Closes out a review: the full human review has been posted to the canonical forum thread
-// (editing the auto-note in place) AND pushed to the review-hub canister. Terminal state.
-// Only call after BOTH succeed, so 'final' means the review is fully closed.
+// (as a new reply; the auto-note stays untouched) AND pushed to the review-hub canister.
+// Terminal state. Only call after BOTH succeed, so 'final' means the review is fully closed.
 export async function markReviewFinalized(proposalId: string, postUrl: string): Promise<void> {
   const { error } = await supabase
     .from('proposals_seen')

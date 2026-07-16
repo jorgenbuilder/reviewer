@@ -126,6 +126,35 @@ export async function findCanonicalThread(proposalId: string): Promise<Canonical
   return await firstMatchingTopic(await listRecentCategoryTopics(FALLBACK_SCAN_LIMIT), proposalId);
 }
 
+// Plain text of a topic's first post plus any follow-up posts by the same author (the
+// thread starter — for canonical proposal threads that's DFINITY, whose posts carry the
+// "we plan to vote on ..." announcements). HTML-stripped, for LLM consumption.
+export async function getTopicPostsText(topicId: number, maxPosts = 4): Promise<string[]> {
+  const res = await forumGet(`/t/${topicId}.json`);
+  if (res.status === 401 || res.status === 403) {
+    throw new ForumAuthError(`forum topic fetch rejected key: HTTP ${res.status}`);
+  }
+  if (!res.ok) throw new Error(`forum topic fetch failed: HTTP ${res.status}`);
+  const data = await res.json();
+  const posts: Array<{ username?: string; cooked?: string; raw?: string; created_at?: string }> =
+    data.post_stream?.posts ?? [];
+  if (posts.length === 0) return [];
+  const starter = posts[0].username;
+  const out: string[] = [];
+  for (const p of posts) {
+    if (p.username !== starter) continue;
+    const text = (p.cooked || p.raw || "")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    // Prefix the post date — relative statements ("we plan to vote on Monday") resolve
+    // against when the post was written, not when the proposal was submitted.
+    if (text) out.push(`[posted ${p.created_at || "unknown date"}] ${text}`);
+    if (out.length >= maxPosts) break;
+  }
+  return out;
+}
+
 // --- Posting (write scope) -----------------------------------------------------------
 // Posting uses a SEPARATE write-scoped key (least privilege: detection uses the read key).
 // The account that minted FORUM_USER_API_KEY_WRITE is the author of the post.

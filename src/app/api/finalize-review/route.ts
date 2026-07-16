@@ -1,6 +1,6 @@
 // Marks a review fully closed in the portal DB. Called by the author/web agent AFTER it has
-// (1) edited the full review into the canonical forum post and (2) pushed it to the
-// review-hub canister. Flips proposals_seen.review_post_state to 'final'.
+// (1) posted the full review as a new reply in the canonical forum thread and (2) pushed it
+// to the review-hub canister. Flips proposals_seen.review_post_state to 'final'.
 //
 // Body: { proposalId: string, postUrl: string }
 // Auth: Bearer CRON_SECRET.

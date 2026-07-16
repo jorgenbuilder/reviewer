@@ -27,7 +27,7 @@ export interface RecordEventOpts {
   detail?: string;
   once?: boolean; // skip if an event of this type already exists for the proposal
   // if set, also push to the operator; `url` overrides the click target (default: proposal page)
-  push?: { title: string; body: string; url?: string };
+  push?: { title: string; body: string; url?: string; urgent?: boolean };
 }
 
 /**
@@ -48,6 +48,7 @@ export async function recordEvent(proposalId: string, eventType: string, opts: R
       body: opts.push.body,
       proposalId,
       url: opts.push.url || `${APP_URL}/proposals/${proposalId}`,
+      urgent: opts.push.urgent,
     });
   }
   return true;

@@ -17,6 +17,8 @@ export interface PushPayload {
   body: string;
   proposalId: string;
   url?: string;
+  /** Startling notification: stronger vibration + renotify in the service worker. */
+  urgent?: boolean;
 }
 
 export interface WebPushSubscription {

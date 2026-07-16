@@ -22,6 +22,8 @@ import { sendProposalNotificationEmail } from "@/lib/email";
 import { getCommitDiffStats, getCommitDiffStatsByHash, parseGitHubUrl, getDiffStatsFromCommits } from "@/lib/github";
 import { scheduleDetection } from "@/lib/forum-detect";
 import { recordEvent } from "@/lib/events";
+import { saveUrgencyExtraction } from "@/lib/db";
+import { extractUrgency, startlingLevel, describePlannedVote, URGENCY_MODEL, UrgencyExtraction } from "@/lib/urgency";
 
 // Verify cron secret or QStash signature
 function verifyAuth(request: Request): boolean {
@@ -130,10 +132,41 @@ export async function POST(request: Request) {
         proposalTimestamp
       );
 
+      // Urgency extraction (best-effort): when-DFINITY-plans-to-vote + urgency from the
+      // proposal text, BEFORE notifications so the first push already carries the right
+      // level of alarm. Forum context isn't available yet — detect-forum-post re-extracts
+      // with it once the canonical thread is found.
+      let urgencyResult: UrgencyExtraction | null = null;
+      try {
+        urgencyResult = await extractUrgency({
+          proposalId: proposalIdStr,
+          title: proposal.title,
+          summary: proposal.summary,
+          proposalTimestamp,
+        });
+        await saveUrgencyExtraction(proposalIdStr, urgencyResult, "proposal", URGENCY_MODEL);
+      } catch (error) {
+        console.error(`[check-proposals] Urgency extraction failed for #${proposalIdStr}:`, error);
+      }
+
+      // Startling proposals get a startling notification.
+      const level = urgencyResult ? startlingLevel(urgencyResult.urgency, urgencyResult.plannedVoteAt) : null;
+      const voteLine = urgencyResult?.plannedVoteAt ? describePlannedVote(urgencyResult.plannedVoteAt) : null;
+      const pushTitle =
+        level === "urgent" ? `🚨 URGENT proposal #${proposalIdStr}`
+        : level === "vote-soon" ? `⏰ Vote soon · #${proposalIdStr}`
+        : "New Proposal";
+      const pushBody =
+        level
+          ? [proposal.title, voteLine, urgencyResult?.evidence ? `"${urgencyResult.evidence}"` : null]
+              .filter(Boolean)
+              .join(" — ")
+          : `#${proposalIdStr}: ${proposal.title}`;
+
       // Log + notify: proposal detected.
       await recordEvent(proposalIdStr, "proposal_detected", {
         detail: proposal.title,
-        push: { title: "Proposal detected", body: `#${proposalIdStr}: ${proposal.title}` },
+        push: { title: level ? pushTitle : "Proposal detected", body: pushBody, urgent: level !== null },
       });
 
       // Spawn canonical-forum-post detection (self-rescheduling QStash task with backoff).
@@ -212,10 +245,11 @@ export async function POST(request: Request) {
               keys: { p256dh: sub.p256dh, auth: sub.auth },
             },
             {
-              title: "New Proposal",
-              body: `#${proposalIdStr}: ${proposal.title}`,
+              title: pushTitle,
+              body: level ? pushBody : `#${proposalIdStr}: ${proposal.title}`,
               proposalId: proposalIdStr,
               url: `/proposals/${proposalIdStr}`,
+              urgent: level !== null,
             }
           );
 

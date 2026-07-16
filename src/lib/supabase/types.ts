@@ -89,6 +89,12 @@ export type Database = {
           review_post_url: string | null
           review_flagged_reason: string | null
           review_posted_at: string | null
+          planned_vote_at: string | null
+          urgency: number | null
+          urgency_evidence: string | null
+          urgency_source: string | null
+          urgency_model: string | null
+          urgency_extracted_at: string | null
         }
         Insert: {
           proposal_id: number
@@ -109,6 +115,12 @@ export type Database = {
           review_post_url?: string | null
           review_flagged_reason?: string | null
           review_posted_at?: string | null
+          planned_vote_at?: string | null
+          urgency?: number | null
+          urgency_evidence?: string | null
+          urgency_source?: string | null
+          urgency_model?: string | null
+          urgency_extracted_at?: string | null
         }
         Update: {
           proposal_id?: number
@@ -129,6 +141,12 @@ export type Database = {
           review_post_url?: string | null
           review_flagged_reason?: string | null
           review_posted_at?: string | null
+          planned_vote_at?: string | null
+          urgency?: number | null
+          urgency_evidence?: string | null
+          urgency_source?: string | null
+          urgency_model?: string | null
+          urgency_extracted_at?: string | null
         }
         Relationships: []
       }

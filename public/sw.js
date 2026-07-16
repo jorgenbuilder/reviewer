@@ -41,6 +41,12 @@ self.addEventListener("push", (event) => {
     body: data.body,
     tag: data.proposalId ? `proposal-${data.proposalId}` : "proposal-notification",
     requireInteraction: true,
+    // Urgent/vote-soon proposals get a startling presentation: insistent vibration,
+    // and renotify so the alert fires again even when replacing an earlier notification
+    // for the same proposal (e.g. an urgency escalation after forum detection).
+    vibrate: data.urgent ? [300, 100, 300, 100, 600] : [200],
+    renotify: data.urgent === true,
+    silent: false,
     data: {
       url: data.url || (data.proposalId ? `/proposals/${data.proposalId}` : "/"),
       proposalId: data.proposalId,

@@ -8,12 +8,60 @@
 //  - key rejected       → email alert, stop (don't burn attempts on a dead key)
 import { NextRequest, NextResponse } from "next/server";
 import { Receiver } from "@upstash/qstash";
-import { addForumThread, hasCanonicalForumThread } from "@/lib/db";
-import { findCanonicalThread, ForumAuthError } from "@/lib/forum";
+import { addForumThread, hasCanonicalForumThread, getUrgency, saveUrgencyExtraction } from "@/lib/db";
+import { findCanonicalThread, getTopicPostsText, ForumAuthError } from "@/lib/forum";
 import { scheduleDetection, enqueueReviewCheck } from "@/lib/forum-detect";
 import { getVerificationStatusForProposals } from "@/lib/github";
 import { recordEvent } from "@/lib/events";
 import { sendForumCredentialAlertEmail } from "@/lib/email";
+import { getProposal } from "@/lib/nns";
+import { extractUrgency, startlingLevel, describePlannedVote, URGENCY_MODEL } from "@/lib/urgency";
+import { topicIdFromUrl } from "@/lib/forum";
+
+// Re-run urgency extraction with the canonical thread's posts as added context. DFINITY's
+// "we plan to vote on ..." announcements usually live in the forum post, not the proposal
+// text, so this pass is where planned_vote_at most often appears. If the proposal newly
+// becomes startling (urgent / vote-soon), push an escalation notification — the original
+// "proposal detected" push already went out without this signal. Best-effort throughout.
+async function reextractWithForum(proposalId: string, forumUrl: string, log: (...a: unknown[]) => void) {
+  try {
+    const topicId = topicIdFromUrl(forumUrl);
+    if (!topicId) return;
+    const [posts, detail, prior] = await Promise.all([
+      getTopicPostsText(topicId),
+      getProposal(BigInt(proposalId)),
+      getUrgency(proposalId),
+    ]);
+    if (!detail && posts.length === 0) return;
+
+    const extraction = await extractUrgency({
+      proposalId,
+      title: detail?.title || "",
+      summary: detail?.summary || "",
+      proposalTimestamp: detail ? new Date(Number(detail.proposalTimestampSeconds) * 1000) : null,
+      forumPosts: posts,
+    });
+    await saveUrgencyExtraction(proposalId, extraction, "proposal+forum", URGENCY_MODEL);
+
+    const before = prior ? startlingLevel(prior.urgency, prior.plannedVoteAt) : null;
+    const after = startlingLevel(extraction.urgency, extraction.plannedVoteAt);
+    log(`urgency re-extracted: ${extraction.urgency.toFixed(2)}, vote=${extraction.plannedVoteAt ?? "none"} (${before ?? "normal"} → ${after ?? "normal"})`);
+    if (after && !before) {
+      const voteLine = extraction.plannedVoteAt ? describePlannedVote(extraction.plannedVoteAt) : null;
+      await recordEvent(proposalId, "urgency_escalated", {
+        once: true,
+        detail: [`urgency=${extraction.urgency.toFixed(2)}`, voteLine, extraction.evidence].filter(Boolean).join("; "),
+        push: {
+          title: after === "urgent" ? `🚨 URGENT proposal #${proposalId}` : `⏰ Vote soon · #${proposalId}`,
+          body: [voteLine, extraction.evidence ? `"${extraction.evidence}"` : null].filter(Boolean).join(" — ") || "Escalated after forum context",
+          urgent: true,
+        },
+      });
+    }
+  } catch (error) {
+    log("urgency re-extraction warn:", (error as Error).message);
+  }
+}
 
 async function verifyQStashSignature(signature: string | null, body: string): Promise<boolean> {
   const current = process.env.QSTASH_CURRENT_SIGNING_KEY;
@@ -67,6 +115,8 @@ export async function POST(request: NextRequest) {
       });
       // Opportunistic low-latency kick; the checker self-gates on verification + idempotency.
       await enqueueReviewCheck(proposalId).catch((e) => log("review enqueue warn:", (e as Error).message));
+      // Re-run urgency extraction now that forum context exists (escalation push if it flips).
+      await reextractWithForum(proposalId, thread.url, log);
       return NextResponse.json({ status: "found", url: thread.url });
     }
     // One-shot (backstop-originated): make no further attempt; the reconcile-detection
