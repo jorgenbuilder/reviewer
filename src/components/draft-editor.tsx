@@ -289,8 +289,14 @@ export function DraftEditor({ proposalId }: { proposalId: string }) {
         {/* Banners */}
         {state === "locked" && (
           <div className="border-b border-border bg-muted/40 px-3 py-3 font-mono text-xs text-muted-foreground">
-            This device isn&apos;t unlocked for editing. Visit <span className="font-bold text-foreground">/unlock?key=&lt;EDIT_SECRET&gt;</span> once
-            on this device (the secret is in Vercel env / .env.local), then reload.
+            This device isn&apos;t unlocked for editing.{" "}
+            <a
+              href={`/unlock?next=${encodeURIComponent(`/proposals/${proposalId}/draft`)}`}
+              className="font-bold text-foreground underline"
+            >
+              Unlock this device
+            </a>{" "}
+            with EDIT_SECRET (in Vercel env / .env.local) — once per device.
           </div>
         )}
         {restoreOffer && (
