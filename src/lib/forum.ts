@@ -182,23 +182,101 @@ export function topicIdFromUrl(url: string): number | null {
   }
 }
 
-// Idempotency guard: has the posting user already posted in this topic?
-// True iff `username` has already posted a note for THIS proposal in the topic. The match is
-// per-proposal (post body references the proposal), not merely per-topic: batched
-// "NNS Updates YYYY-MM-DD" threads carry one note per proposal, so a plain "user has any post
-// here" check would suppress every note after the first. Each verification note embeds its
-// proposal ID, so referencing that ID reliably distinguishes them.
-export async function hasReviewNoteForProposal(topicId: number, username: string, proposalId: string): Promise<boolean> {
-  const res = await fetch(`${FORUM_BASE_URL}/t/${topicId}.json`, {
+interface TopicPost {
+  id: number;
+  post_number: number;
+  username?: string;
+  cooked?: string;
+  raw?: string;
+}
+
+// Topic posts via the write key, with raw markdown included (needed to inspect and edit the
+// verification-note post; cooked HTML is not safely round-trippable).
+async function fetchTopicPosts(topicId: number): Promise<{ slug: string; posts: TopicPost[] }> {
+  const res = await fetch(`${FORUM_BASE_URL}/t/${topicId}.json?include_raw=1`, {
     headers: { "User-Api-Key": writeApiKey(), Accept: "application/json", "User-Agent": "pcm-portal/post" },
   });
   if (res.status === 401 || res.status === 403) throw new ForumAuthError(`topic read rejected write key: HTTP ${res.status}`);
   if (!res.ok) throw new Error(`topic fetch failed: HTTP ${res.status}`);
   const data = await res.json();
-  const posts: Array<{ username?: string; cooked?: string; raw?: string }> = data.post_stream?.posts ?? [];
+  return { slug: data.slug || "topic", posts: data.post_stream?.posts ?? [] };
+}
+
+// Idempotency guard: has the posting user already posted in this topic?
+// True iff `username` has already posted a note for THIS proposal in the topic. The match is
+// per-proposal (post body references the proposal), not merely per-topic: batched
+// "NNS Updates YYYY-MM-DD" threads cover several proposals, so a plain "user has any post
+// here" check would suppress every note after the first. Each verification note embeds its
+// proposal ID, so referencing that ID reliably distinguishes them.
+export async function hasReviewNoteForProposal(topicId: number, username: string, proposalId: string): Promise<boolean> {
+  const { posts } = await fetchTopicPosts(topicId);
   return posts.some(
     (p) => p.username?.toLowerCase() === username.toLowerCase() && bodyReferencesProposal(p.cooked || p.raw || "", proposalId)
   );
+}
+
+// --- Combined verification notes ------------------------------------------------------
+// One verification-note post per topic: a batched "NNS Updates" thread covers several
+// proposals, and each build's line is appended to the topic's existing note post (a silent
+// Discourse edit) instead of landing as a separate reply. A post qualifies as THE note post
+// iff every non-empty line is a verification line — which excludes full human reviews, since
+// those carry a vote line and prose. Must match templates/forum-verification-note.md.
+const NOTE_LINE_PREFIX = "✅ Build verified:";
+
+function isVerificationNoteRaw(raw: string): boolean {
+  const lines = raw.split("\n").map((l) => l.trim()).filter(Boolean);
+  return lines.length > 0 && lines.every((l) => l.startsWith(NOTE_LINE_PREFIX));
+}
+
+export interface NotePost { id: number; postNumber: number; url: string; raw: string }
+
+// The posting user's existing verification-note post in this topic, or null.
+export async function findVerificationNotePost(topicId: number, username: string): Promise<NotePost | null> {
+  const { slug, posts } = await fetchTopicPosts(topicId);
+  for (const p of posts) {
+    if (p.username?.toLowerCase() !== username.toLowerCase()) continue;
+    if (p.raw && isVerificationNoteRaw(p.raw)) {
+      return { id: p.id, postNumber: p.post_number, url: `${FORUM_BASE_URL}/t/${slug}/${topicId}/${p.post_number}`, raw: p.raw };
+    }
+  }
+  return null;
+}
+
+// Append one verification line to the existing note post. Guards: refetches raw immediately
+// before the PUT and refuses to touch anything that isn't purely a note post (closes the
+// select-then-edit race); no-ops if the proposal's line is already present; verifies the line
+// landed after the write and retries, since two concurrent appends are a read-modify-write
+// race and Discourse has no compare-and-set on raw. Throwing without marking posted is safe —
+// the reconciler retries the whole (idempotent) invocation.
+export async function appendVerificationLine(note: NotePost, line: string, proposalId: string): Promise<PostedReply> {
+  const reply: PostedReply = { id: note.id, postNumber: note.postNumber, url: note.url };
+  const readRaw = async (): Promise<string> => {
+    const res = await fetch(`${FORUM_BASE_URL}/posts/${note.id}.json`, {
+      headers: { "User-Api-Key": writeApiKey(), Accept: "application/json", "User-Agent": "pcm-portal/post" },
+    });
+    if (res.status === 401 || res.status === 403) throw new ForumAuthError(`post read rejected write key: HTTP ${res.status}`);
+    if (!res.ok) throw new Error(`post fetch failed: HTTP ${res.status}`);
+    return (await res.json()).raw || "";
+  };
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const raw = await readRaw();
+    if (bodyReferencesProposal(raw, proposalId)) return reply; // already there (or our write landed)
+    if (!isVerificationNoteRaw(raw)) throw new Error(`refusing to edit post ${note.id}: no longer a pure verification-note post`);
+
+    const put = await fetch(`${FORUM_BASE_URL}/posts/${note.id}.json`, {
+      method: "PUT",
+      headers: { "User-Api-Key": writeApiKey(), "Content-Type": "application/json", "User-Agent": "pcm-portal/post" },
+      body: JSON.stringify({ post: { raw: raw.trimEnd() + "\n" + line.trim() } }),
+    });
+    const body = await put.json().catch(() => ({}));
+    if (put.status === 401 || put.status === 403) throw new ForumAuthError(`post edit rejected write key: HTTP ${put.status}`);
+    if (put.status === 429) throw new ForumRateLimitError(Number(body?.extras?.wait_seconds) || 10);
+    if (!put.ok) throw new Error(`post edit failed: HTTP ${put.status} ${JSON.stringify(body).slice(0, 200)}`);
+    if (bodyReferencesProposal(await readRaw(), proposalId)) return reply; // survived — done
+    // else a concurrent editor clobbered our write; loop re-reads and re-appends
+  }
+  throw new Error(`append to post ${note.id} lost the edit race repeatedly; will retry via reconciler`);
 }
 
 export interface PostedReply { id: number; postNumber: number; url: string }

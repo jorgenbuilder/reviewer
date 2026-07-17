@@ -14,6 +14,8 @@ import { recordEvent } from "@/lib/events";
 import {
   topicIdFromUrl,
   hasReviewNoteForProposal,
+  findVerificationNotePost,
+  appendVerificationLine,
   postReply,
   FORUM_POST_USERNAME,
   ForumAuthError,
@@ -112,9 +114,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ status: "flagged", reasons: audit.reasons });
     }
 
-    // Post the factual verification note.
+    // Post the factual verification note. One note post per topic: if the posting user
+    // already has one (batched "NNS Updates" threads carry several proposals), append this
+    // build's line to it; otherwise create it.
     const raw = renderVerificationNote({ proposalId, title: audit.title || "", verificationRunUrl: audit.runUrl || "" });
-    const posted = await postReply(topicId, raw);
+    const existingNote = await findVerificationNotePost(topicId, FORUM_POST_USERNAME);
+    const posted = existingNote
+      ? await appendVerificationLine(existingNote, raw, proposalId)
+      : await postReply(topicId, raw);
     await markReviewPosted(proposalId, posted.url);
     await recordEvent(proposalId, "review_posted", { detail: posted.url, push: { title: "Verification note posted", body: `#${proposalId} posted to the forum`, url: posted.url } });
     log("✅ posted verification note:", posted.url);
