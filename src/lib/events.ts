@@ -26,6 +26,7 @@ export async function notifyOperator(payload: PushPayload): Promise<void> {
 export interface RecordEventOpts {
   detail?: string;
   once?: boolean; // skip if an event of this type already exists for the proposal
+  maxDetailLen?: number; // default 1000; raise for structured payloads (e.g. a failure report)
   // if set, also push to the operator; `url` overrides the click target (default: proposal page)
   push?: { title: string; body: string; url?: string; urgent?: boolean };
 }
@@ -38,7 +39,7 @@ export interface RecordEventOpts {
 export async function recordEvent(proposalId: string, eventType: string, opts: RecordEventOpts = {}): Promise<boolean> {
   try {
     if (opts.once && (await hasProposalEvent(proposalId, eventType))) return false;
-    await logProposalEvent(proposalId, eventType, opts.detail);
+    await logProposalEvent(proposalId, eventType, opts.detail, opts.maxDetailLen);
   } catch (e) {
     console.error(`[events] log failed (${eventType} #${proposalId}):`, (e as Error).message);
   }

@@ -279,11 +279,12 @@ export interface ProposalEvent {
 export async function logProposalEvent(
   proposalId: string,
   eventType: string,
-  detail?: string
+  detail?: string,
+  maxLen = 1000
 ): Promise<void> {
   const { error } = await supabase
     .from('proposal_events')
-    .insert({ proposal_id: parseInt(proposalId, 10), event_type: eventType, detail: detail?.slice(0, 1000) ?? null })
+    .insert({ proposal_id: parseInt(proposalId, 10), event_type: eventType, detail: detail?.slice(0, maxLen) ?? null })
   if (error) throw error
 }
 

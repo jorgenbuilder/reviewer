@@ -40,7 +40,7 @@ const firstParagraph = (md: string | null): string =>
 
 type ActivityKind = "verification" | "healing" | "commentary" | "forum" | "review";
 function activityKind(t: string): ActivityKind {
-  if (t.startsWith("verification_healing") || t === "verification_gave_up") return "healing";
+  if (t.startsWith("verification_healing") || t === "verification_gave_up" || t === "verification_needs_attention") return "healing";
   if (t.startsWith("verification")) return "verification";
   if (t === "commentary_generated") return "commentary";
   if (t === "canonical_found") return "forum";
@@ -53,6 +53,8 @@ const ACTIVITY_LABEL: Record<string, string> = {
   verification_verified: "Build verified",
   verification_failed: "Verification failed",
   verification_gave_up: "Self-healing gave up",
+  verification_needs_attention: "Verification needs you",
+  verification_retry_requested: "Verification retry requested",
   commentary_generated: "AI commentary generated",
   canonical_found: "Canonical forum post found",
   review_posted: "Verification note posted",
@@ -181,7 +183,10 @@ export async function buildParsedProposal(id: string): Promise<ParsedProposal | 
       at: e.created_at,
       kind: activityKind(e.event_type),
       message: activityMessage(e),
-      url: e.detail && /^https?:\/\//.test(e.detail) ? e.detail : undefined,
+      url:
+        e.event_type === "verification_needs_attention"
+          ? `/proposals/${id}/verification`
+          : e.detail && /^https?:\/\//.test(e.detail) ? e.detail : undefined,
     })),
     onchain: {
       // Prefer the on-chain canister ID's canonical label; fall back to parsing
